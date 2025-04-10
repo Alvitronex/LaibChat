@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:frontend/models/models.dart';
-import 'package:frontend/screens/screens.dart';
 import 'package:frontend/services/services.dart';
 import 'package:http/http.dart' as http;
 
@@ -23,6 +22,9 @@ class AuthService extends ChangeNotifier {
     String deviceName,
   ) async {
     try {
+      // Clean previous auth state to prevent unauthorized access
+      cleanUp();
+
       final response =
           await http.post(Uri.parse('${servidor.baseUrl}/sanctum/token'),
               body: ({
@@ -33,8 +35,12 @@ class AuthService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         String token = response.body.toString();
-        tryToken(token);
-        return "correcto";
+        final bool tokenValid = await tryToken(token);
+        if (tokenValid) {
+          return "correcto";
+        } else {
+          return 'Token inválido';
+        }
       } else {
         return 'Datos incorrectos';
       }
@@ -49,6 +55,9 @@ class AuthService extends ChangeNotifier {
     String password,
   ) async {
     try {
+      // Clean previous auth state to prevent unauthorized access
+      cleanUp();
+
       final response =
           await http.post(Uri.parse('${servidor.baseUrl}/register'),
               body: ({
@@ -59,8 +68,12 @@ class AuthService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         String token = response.body.toString();
-        tryToken(token);
-        return "correcto";
+        final bool tokenValid = await tryToken(token);
+        if (tokenValid) {
+          return "correcto";
+        } else {
+          return 'Token inválido';
+        }
       } else {
         return 'Datos incorrectos';
       }
@@ -69,28 +82,40 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  void tryToken(String? token) async {
+  Future<bool> tryToken(String? token) async {
     if (token == null) {
-      return;
+      return false;
     } else {
       try {
         final response = await http.get(Uri.parse('${servidor.baseUrl}/user'),
             headers: {'Authorization': 'Bearer $token'});
-        print(response.body);
-        _isLoggedIn = true;
-        _user = User.fromJson(jsonDecode(response.body));
-        _token = token;
-        storeToken(token);
-        notifyListeners();
+
+        if (response.statusCode == 200) {
+          print(response.body);
+          _isLoggedIn = true;
+          _user = User.fromJson(jsonDecode(response.body));
+          _token = token;
+          storeToken(token);
+          notifyListeners();
+          return true;
+        } else {
+          // Invalid token or unauthorized
+          cleanUp();
+          notifyListeners();
+          return false;
+        }
       } catch (e) {
         print(e);
+        cleanUp();
+        notifyListeners();
+        return false;
       }
     }
   }
 
   void storeToken(String token) async {
     _storage.write(key: 'token', value: token);
-    // print(token);
+    print(token);
   }
 
   void logout() async {

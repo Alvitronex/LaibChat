@@ -150,7 +150,7 @@ class Home extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 20,
+            top: 50,
             right: 15,
             child: Row(
               children: [

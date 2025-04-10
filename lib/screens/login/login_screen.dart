@@ -173,34 +173,34 @@ class _LoginForm extends StatelessWidget {
                     FocusScope.of(context).unfocus();
                     if (!loginForm.isValidForm()) return;
                     loginForm.isLoading = true;
-                    // await Future.delayed(const Duration(seconds: 2));
 
-                    //
                     final authService =
                         Provider.of<AuthService>(context, listen: false);
 
-                    //
                     String respuesta = await authService.login(
                         loginForm.email, loginForm.password, 'movile');
 
-                    // print(respuesta);
+                    // Set isLoading to false regardless of response
+                    loginForm.isLoading = false;
+
+                    // ignore: use_build_context_synchronously
                     if (respuesta == "correcto") {
-                      loginForm.isLoading = false;
-                      // ignore: use_build_context_synchronously
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const Home(),
-                          fullscreenDialog: true, // Agrega esta línea
+                          fullscreenDialog: true,
                         ),
                       );
-                      //                 routes: {
-                      //   '/': (_) => const HomeScreen(),
-                      //   'splash': (_) => const SplashScreen(),
-                      //   'login': (_) => const LoginScreen(),
-                      //   'register': (_) => const RegisterScreen(),
-                      //   'home': (_) => const Home(),
-                      // },
+                    } else {
+                      // Show error message and allow retry
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: $respuesta'),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
                     }
                   },
             // onPressed: () {

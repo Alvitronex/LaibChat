@@ -174,23 +174,36 @@ class _RegisterForm extends StatelessWidget {
                     FocusScope.of(context).unfocus();
                     if (!registerForm.isValidForm()) return;
                     registerForm.isLoading = true;
-                    // await Future.delayed(const Duration(seconds: 2));
 
-                    // //
                     final authService =
                         Provider.of<AuthService>(context, listen: false);
 
-                    // //
                     String respuesta = await authService.register(
                         registerForm.name,
                         registerForm.email,
                         registerForm.password);
 
-                    // // print(respuesta);
+                    // Set isLoading to false regardless of response
+                    registerForm.isLoading = false;
+                    
+                    // ignore: use_build_context_synchronously
                     if (respuesta == "correcto") {
-                      registerForm.isLoading = false;
-                      // ignore: use_build_context_synchronously
-                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                          fullscreenDialog: true,
+                        ),
+                      );
+                    } else {
+                      // Show error message and allow retry
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: $respuesta'),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
                     }
                   },
           ),
