@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'SludHealtech',
+      title: 'ChatLaib',
       initialRoute: 'splash',
       routes: {
         'splash': (_) => const SplashScreen(),
