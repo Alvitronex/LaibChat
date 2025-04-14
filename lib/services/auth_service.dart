@@ -52,21 +52,35 @@ class AuthService extends ChangeNotifier {
   Future<String> register(
     String name,
     String email,
-    // int phone,
+    String phone,
     String password,
   ) async {
     try {
-      // Clean previous auth state to prevent unauthorized access
+//limpiando la cache
       cleanUp();
+
+      // ignore: avoid_print
+      print('Intentando registrar: $name, $email, $phone');
+
+      int phoneInt;
+      try {
+        phoneInt = int.parse(phone);
+      } catch (e) {
+        return 'El número de teléfono debe ser numérico';
+      }
 
       final response =
           await http.post(Uri.parse('${servidor.baseUrl}/register'),
               body: ({
                 'name': name,
                 'email': email,
-                // 'phone': phone,
+                'phone': phoneInt
+                    .toString(), // Enviamos como string pero contiene solo un número
                 'password': password,
               }));
+      // ignore: avoid_print
+      print(
+          'Respuesta del servidor: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         String token = response.body.toString();

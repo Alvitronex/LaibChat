@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frontend/providers/providers.dart';
 import 'package:frontend/screens/screens.dart';
 import 'package:frontend/services/services.dart';
@@ -99,8 +100,11 @@ class _RegisterForm extends StatelessWidget {
           const SizedBox(height: 15),
           TextFormField(
             autocorrect: false,
-            keyboardType: TextInputType.phone,
-            // onChanged: (value) => registerForm.phone = value,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+            ],
+            onChanged: (value) => registerForm.phone = value,
             decoration: InputDecoration(
               labelText: 'Numero Telefonico',
               prefixIcon: const Icon(Icons.phone_outlined),
@@ -112,7 +116,9 @@ class _RegisterForm extends StatelessWidget {
               if (value == null || value.isEmpty) {
                 return "El número telefónico no puede estar vacío";
               }
-              if (int.tryParse(value) == null) {
+              try {
+                int.parse(value); // Verifica que sea un número válido
+              } catch (e) {
                 return "Ingrese solo números";
               }
               return null;
@@ -197,6 +203,8 @@ class _RegisterForm extends StatelessWidget {
                     String respuesta = await authService.register(
                         registerForm.name,
                         registerForm.email,
+                        registerForm.phone, // Añadido de nuevo
+
                         // int.parse(
                         //     registerForm.phone), // Conversión de String a int
                         registerForm.password);
