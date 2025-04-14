@@ -92,7 +92,8 @@ class _LoginState extends State<Login> {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10.0),
                   ),
@@ -107,7 +108,8 @@ class _LoginState extends State<Login> {
                 onPressed: () {
                   // Agregar lógica para la navegación a la pantalla de registro
                 },
-                child: const Text('¿No tienes una cuenta? Regístrate aquí'),
+                child:
+                    const Text('¿No tienes una cuenta? Regístrate aquí jsjsj'),
               ),
             ],
           ),

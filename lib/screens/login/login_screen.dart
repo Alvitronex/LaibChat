@@ -1,13 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:frontend/components/components.dart';
-import 'package:frontend/main.dart';
-// import 'package:frontend/components/components.dart';
 import 'package:frontend/providers/providers.dart';
-import 'package:frontend/screens/login/home.dart';
 import 'package:frontend/screens/screens.dart';
 import 'package:frontend/services/auth_service.dart';
-import 'package:frontend/widgets/widgets.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/material.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -27,27 +22,21 @@ class LoginScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(
-                height: 75,
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.1,
               ),
-              Text(
-                "S'lud Healtech",
-                style: TextStyle(
-                    color: Colors.red.shade800,
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 30),
               const Image(
-                image: AssetImage("assets/utils/splash_128.png"),
+                image: AssetImage("assets/utils/logo.jpeg"),
+                width: 300,
+                height: 300,
               ),
-              const SizedBox(height: 30),
               const Text(
-                'Inicio de Sesión',
+                textAlign: TextAlign.center,
+                'Bienvenido a \n LaibChat',
                 style: TextStyle(
-                  color: Color.fromARGB(255, 63, 163, 245),
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  fontSize: 40,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
               Center(
@@ -55,6 +44,9 @@ class LoginScreen extends StatelessWidget {
                   create: (_) => loginformprovider(),
                   child: _LoginForm(),
                 ),
+              ),
+              const SizedBox(
+                height: 10,
               ),
               TextButton(
                 onPressed: () {
@@ -66,55 +58,19 @@ class LoginScreen extends StatelessWidget {
                     ),
                   );
                 },
-                child: const Text('¿No tienes una cuenta? Regístrate aquí'),
+                child: const Text(
+                  textAlign: TextAlign.center,
+                  '¿No tienes una cuenta? Regístrate',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        // const SizedBox(
-        //   height: 300,
-        // ),
-        // CardContainer(
-        //   child: Column(
-        //     children: [
-        //       const SizedBox(height: 10),
-        //       const Text(
-        //         "Iniciar Sesion",
-        //         // style: Theme.of(context).textTheme.headlineMedium,
-        //       ),
-        //       const SizedBox(height: 30),
-        //       ChangeNotifierProvider(
-        //         create: (_) => loginformprovider(),
-        //         child: _LoginForm(),
-        //       ),
-        //     ],
-        //   ),
-        // ),
-        // const SizedBox(height: 30),
-        // Center(
-        //   child: Column(
-        //     children: [
-        //       ListTile(
-        //         leading: const Icon(Icons.app_registration),
-        //         title: Text(
-        //           "Registrate",
-        //           textAlign: TextAlign.center,
-        //           style: TextStyle(
-        //             fontSize: 25,
-        //             fontWeight: FontWeight.bold,
-        //             color: Colors.grey.shade400,
-        //           ),
-        //         ),
-        //         onTap: () {
-        //           Navigator.push(
-        //               context,
-        //               MaterialPageRoute(
-        //                   builder: (context) => const RegisterScreen()));
-        //         },
-        //       ),
-        //     ],
-        //   ),
-        // ),
       ),
     );
   }
@@ -129,7 +85,7 @@ class _LoginForm extends StatelessWidget {
       autovalidateMode: AutovalidateMode.onUserInteraction,
       child: Column(
         children: [
-          SizedBox(
+          const SizedBox(
             height: 20,
           ),
           TextFormField(
@@ -137,36 +93,33 @@ class _LoginForm extends StatelessWidget {
             keyboardType: TextInputType.emailAddress,
             onChanged: (value) => loginForm.email = value,
             decoration: InputDecoration(
-                labelText: 'Correo Electrónico',
-                prefixIcon: Icon(Icons.email),
+                labelText: 'Correo electrónico',
+                prefixIcon: const Icon(Icons.email_outlined),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10.0))),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 15),
           TextFormField(
             autocorrect: false,
             obscureText: true,
             keyboardType: TextInputType.emailAddress,
             onChanged: (value) => loginForm.password = value,
-            validator: (value) {
-              if (value != null && value.length >= 8) return null;
-              return 'La contrasena es demasiado corta';
-            },
             decoration: InputDecoration(
               labelText: 'Contraseña',
-              prefixIcon: const Icon(Icons.lock),
+              prefixIcon: const Icon(Icons.lock_outline),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10.0),
               ),
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 25),
           MaterialButton(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             disabledColor: Colors.grey,
-            elevation: 0,
-            color: Colors.blue,
+            elevation: 5,
+            color: Colors.amber[700],
             onPressed: loginForm.isLoading
                 ? null
                 : () async {
@@ -186,52 +139,49 @@ class _LoginForm extends StatelessWidget {
                     // ignore: use_build_context_synchronously
                     if (respuesta == "correcto") {
                       Navigator.push(
+                        // ignore: use_build_context_synchronously
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const Home(),
+                          builder: (context) => const Dashboard(),
                           fullscreenDialog: true,
+                        ),
+                      );
+                    } else if (respuesta == "error") {
+                      // ignore: use_build_context_synchronously
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Error de conexión'),
+                          backgroundColor: Colors.red[100],
+                          duration: const Duration(seconds: 3),
                         ),
                       );
                     } else {
                       // Show error message and allow retry
+                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error: $respuesta'),
-                          backgroundColor: Colors.red,
+                          content: const Text('Credenciales incorrectas'),
+                          backgroundColor: Colors.red[100],
                           duration: const Duration(seconds: 3),
                         ),
                       );
                     }
                   },
-            // onPressed: () {
-            //   print('presionando');
-            //   print(loginForm.email);
-            //   print(loginForm.password);
-            // }
-
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 15),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 100.0, vertical: 15),
               child: Text(
-                loginForm.isLoading ? 'Espere' : 'Ingresar',
-                style: const TextStyle(color: Colors.white),
+                loginForm.isLoading ? 'Espere' : 'Iniciar Sesión',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _DialogoAlerta extends StatelessWidget {
-  final String mensaje;
-  const _DialogoAlerta({required this.mensaje});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text("Error"),
-      content: Text(mensaje),
     );
   }
 }

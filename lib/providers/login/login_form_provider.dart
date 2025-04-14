@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+// ignore: camel_case_types
 class loginformprovider extends ChangeNotifier {
   GlobalKey<FormState> formkey = GlobalKey<FormState>();
   String email = '';

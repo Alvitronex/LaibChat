@@ -309,7 +309,7 @@ class _DiseaseConsultPageState extends State<DiseaseConsultPage> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Por favor, seleccione una enfermedad.')),
+       const SnackBar(content: Text('Por favor, seleccione una enfermedad.')),
       );
     }
   }

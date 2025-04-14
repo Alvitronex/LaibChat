@@ -1,11 +1,14 @@
+import 'dart:ffi';
+
 import 'package:flutter/material.dart';
 
+// ignore: camel_case_types
 class registerfromprovider extends ChangeNotifier {
   GlobalKey<FormState> formkey = GlobalKey<FormState>();
   String name = '';
   String email = '';
   String password = '';
-  String confirmedPassword = '';
+  // String phone = ''; // Cambiar a String
   bool _isLoading = false;
 
   bool get isLoading => _isLoading;

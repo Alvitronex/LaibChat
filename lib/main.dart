@@ -37,13 +37,38 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // theme: ThemeData(
+      //   primarySwatch: Colors.blue,
+      //   scaffoldBackgroundColor: Colors.white,
+      //   appBarTheme: const AppBarTheme(
+      //     elevation: 0,
+      //     color: Color.fromARGB(255, 21, 45, 86),
+      //   ),
+      // ),
+      theme: ThemeData.light().copyWith(
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          color: Color.fromARGB(255, 21, 45, 86),
+        ),
+      ),
+      // theme: ThemeData(
+      //   primarySwatch: Colors.blue,
+      //   scaffoldBackgroundColor: Colors.grey[100],
+      //   appBarTheme: const AppBarTheme(
+      //     elevation: 0,
+      //     color: Color.fromARGB(255, 21, 45, 86),
+      //   ),
+      // ),
+
       debugShowCheckedModeBanner: false,
-      title: 'ChatLaib',
+      title: 'LaibChat',
       initialRoute: 'splash',
       routes: {
         'splash': (_) => const SplashScreen(),
         'login': (_) => const LoginScreen(),
         'register': (_) => const RegisterScreen(),
+        'dashboard': (_) => const Dashboard(),
         'home': (_) => const Home(),
       },
       // theme: ThemeData.light().copyWith(

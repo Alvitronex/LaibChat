@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/login/home.dart';
 import 'package:frontend/screens/screens.dart';
-import 'package:frontend/services/auth_service.dart';
-import 'package:provider/provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,6 +12,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     var d = const Duration(seconds: 2);
     Future.delayed(d, () {
+      // ignore: use_build_context_synchronously
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
         builder: (context) {
           return const LoginScreen();
@@ -32,18 +30,10 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image(
-              image: AssetImage("assets/utils/splash_256.png"),
-            ),
             SizedBox(
-              height: 50,
-            ),
-            Text(
-              "Bienvenido a tu salud informativa",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                color: Color.fromARGB(255, 21, 45, 86),
+              child: Image(
+                image: AssetImage("assets/utils/logo.jpeg"),
+                fit: BoxFit.contain,
               ),
             ),
           ],

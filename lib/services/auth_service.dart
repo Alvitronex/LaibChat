@@ -52,6 +52,7 @@ class AuthService extends ChangeNotifier {
   Future<String> register(
     String name,
     String email,
+    // int phone,
     String password,
   ) async {
     try {
@@ -63,6 +64,7 @@ class AuthService extends ChangeNotifier {
               body: ({
                 'name': name,
                 'email': email,
+                // 'phone': phone,
                 'password': password,
               }));
 
@@ -91,6 +93,7 @@ class AuthService extends ChangeNotifier {
             headers: {'Authorization': 'Bearer $token'});
 
         if (response.statusCode == 200) {
+          // ignore: avoid_print
           print(response.body);
           _isLoggedIn = true;
           _user = User.fromJson(jsonDecode(response.body));
@@ -105,6 +108,7 @@ class AuthService extends ChangeNotifier {
           return false;
         }
       } catch (e) {
+        // ignore: avoid_print
         print(e);
         cleanUp();
         notifyListeners();
@@ -115,11 +119,12 @@ class AuthService extends ChangeNotifier {
 
   void storeToken(String token) async {
     _storage.write(key: 'token', value: token);
-    print(token);
+    // print(token);
   }
 
   void logout() async {
     try {
+      // ignore: unused_local_variable
       final response = await http.get(
           Uri.parse('${servidor.baseUrl}/user/revoke'),
           headers: {'Authorization': 'Bearer $_token'});
@@ -127,6 +132,7 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       // print("Imprimiendo desde el servies");
     } catch (e) {
+      // ignore: avoid_print
       print(e);
     }
   }

@@ -2,6 +2,7 @@ class User {
   int id;
   String name;
   String email;
+  // int phone;
   dynamic emailVerifiedAt;
   DateTime createdAt;
   DateTime updatedAt;
@@ -10,6 +11,7 @@ class User {
     required this.id,
     required this.name,
     required this.email,
+    // required this.phone,
     required this.emailVerifiedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -19,6 +21,7 @@ class User {
       : id = json["id"],
         name = json["name"],
         email = json["email"],
+        // phone = json["phone"],
         emailVerifiedAt = json["email_verified_at"],
         createdAt = DateTime.parse(json["created_at"]),
         updatedAt = DateTime.parse(json["updated_at"]);
