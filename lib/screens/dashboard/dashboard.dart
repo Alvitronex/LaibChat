@@ -8,30 +8,57 @@ class Dashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final List<Map<String, String>> chats = [
+      {
+        'name': 'Jenny Wilson',
+        'message': 'Gracias por la información',
+        'time': '10:15',
+        // 'image': 'assets/utils/user1.jpg',
+      },
+      {
+        'name': 'Rual López',
+        'message': 'Perfecto, nos vemos luego',
+        'time': '09:42',
+      },
+      {
+        'name': 'Andrea Peña',
+        'message': 'Hola, ¿cómo estás?',
+        'time': 'Ayer',
+      },
+      {
+        'name': 'Mario García',
+        'message': 'Te enviaré los archivos mañana',
+        'time': '04 abr',
+      },
+    ];
+
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('ChatLaib'),
-        backgroundColor: const Color.fromARGB(255, 123, 143, 177),
+        backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
-        titleTextStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-        actionsIconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          const Text(
-            "Salir",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/utils/logo.jpeg',
+              height: 40,
             ),
-          ),
+            const SizedBox(width: 10),
+            const Text(
+              'LaibChat',
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
           IconButton(
             icon: const Icon(Icons.logout_outlined),
-            padding: EdgeInsets.symmetric(horizontal: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            mouseCursor: SystemMouseCursors.click,
             onPressed: () {
               Provider.of<AuthService>(context, listen: false).logout();
               Navigator.pushNamed(context, "login");
@@ -39,37 +66,50 @@ class Dashboard extends StatelessWidget {
           ),
         ],
       ),
-      body: const Stack(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            // mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Column(
-                children: [
-                  Image(
-                      image: AssetImage("assets/utils/splash_128.png"),
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.fitHeight,
-                      colorBlendMode: BlendMode.modulate),
-                ],
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Chat',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
               ),
-              SizedBox(width: 20),
-              Column(
-                children: [
-                  Text(
-                    "Mario Alvarado",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: chats.length,
+                itemBuilder: (context, index) {
+                  final chat = chats[index];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    leading: CircleAvatar(
+                      radius: 26,
+                      // backgroundImage: AssetImage(chat['image']!),
                     ),
-                  ),
-                ],
-              )
-            ],
-          )
-        ],
+                    title: Text(
+                      chat['name']!,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(chat['message']!),
+                    trailing: Text(
+                      chat['time']!,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    onTap: () {
+                      // Navegar al chat
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

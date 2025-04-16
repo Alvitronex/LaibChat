@@ -5,8 +5,8 @@ import 'package:frontend/services/services.dart';
 import 'package:frontend/widgets/widgets.dart';
 import 'package:provider/provider.dart';
 
-class RegisterScreen extends StatelessWidget {
-  const RegisterScreen({super.key});
+class RegisterScreens extends StatelessWidget {
+  const RegisterScreens({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -184,7 +184,8 @@ class _RegisterForm extends StatelessWidget {
                     String respuesta = await authService.register(
                         registerForm.name,
                         registerForm.email,
-                        registerForm.password);
+                        registerForm.password,
+                        registerForm.confirmedPassword);
 
                     // // print(respuesta);
                     if (respuesta == "correcto") {
