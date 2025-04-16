@@ -5,6 +5,12 @@ import 'package:provider/provider.dart';
 import 'services/services.dart';
 
 void main() {
+  // Capturar errores no controlados
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    // También podrías registrar estos errores en un servicio de informes de errores
+  };
+
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const AppState());
 }
