@@ -26,7 +26,7 @@ class Dashboard extends StatelessWidget {
         'time': 'Ayer',
       },
       {
-        'name': 'Mario wilsons',
+        'name': 'Mario wilso',
         'message': 'Te enviaré los archivos mañana',
         'time': '04 abr',
       },
