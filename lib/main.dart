@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/components/components.dart';
-import 'package:frontend/screens/login/home.dart';
 import 'package:frontend/screens/screens.dart';
 import 'package:provider/provider.dart';
 import 'services/services.dart';
@@ -69,7 +68,7 @@ class MyApp extends StatelessWidget {
         'login': (_) => const LoginScreen(),
         'register': (_) => const RegisterScreen(),
         'dashboard': (_) => const Dashboard(),
-        'home': (_) => const Home(),
+        // 'home': (_) => const Home(),
       },
       // theme: ThemeData.light().copyWith(
       //   scaffoldBackgroundColor: Colors.grey[100],
@@ -124,7 +123,7 @@ class MyApp extends StatelessWidget {
 //               Container(
 //                 padding: EdgeInsets.all(16.0),
 //                 child: Image.asset(
-//                   'assets/images/descarga.jpeg', // Asegúrate de tener esta imagen en tu carpeta assets
+//                   'assets/images/logo.jpeg', // Asegúrate de tener esta imagen en tu carpeta assets
 //                   width: 400,
 //                   height: 200,
 //                 ),

@@ -66,23 +66,7 @@ flutter:
   assets:
     - assets/utils/
   # assets:
-  # - assets/images/descarga.jpeg
-  # - assets/images/paracetamol.jpg
-  # - assets/images/Antiflu-Des.jpeg
-  # - assets/images/Aspirina.jpeg
-  # - assets/images/Bismutol.jpeg
-  # - assets/images/Clonazepam.jpeg
-  # - assets/images/Diazepam.jpeg
-  # - assets/images/Esomeprazol.jpeg
-  # - assets/images/Ibuprofeno.jpeg
-  # - assets/images/Mebeverina.jpeg
-  # - assets/images/Metoclopramida.jpeg
-  # - assets/images/Naproxeno.jpeg
-  # - assets/images/Omeprazol.png
-  # - assets/images/Ondansetrón.jpeg
-  # - assets/images/Ranitidina.jpeg
-  # - assets/images/Tabcin.jpeg
-  # - assets/images/Trimebutina.jpeg
+  # - assets/images/logo.jpeg
 
   # - lib/image/
 
