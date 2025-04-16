@@ -63,7 +63,7 @@ class MyApp extends StatelessWidget {
 
       debugShowCheckedModeBanner: false,
       title: 'LaibChat',
-      initialRoute: 'dashboard',
+      initialRoute: 'splash',
       routes: {
         'splash': (_) => const SplashScreen(),
         'login': (_) => const LoginScreen(),
