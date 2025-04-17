@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/screens.dart';
+import 'package:frontend/services/services.dart';
+import 'package:provider/provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,17 +11,24 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
-    var d = const Duration(seconds: 2);
-    Future.delayed(d, () {
-      // ignore: use_build_context_synchronously
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-        builder: (context) {
-          return const LoginScreen();
-        },
-      ), (route) => false);
-    });
-
     super.initState();
+    _checkAuthentication();
+  }
+
+  Future<void> _checkAuthentication() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+
+    // Verificar si hay un token guardado
+    final isAuthenticated = await authService.checkToken();
+
+    // Redireccionar según el estado de autenticación
+    Future.delayed(const Duration(seconds: 2), () {
+      if (isAuthenticated) {
+        Navigator.pushReplacementNamed(context, 'dashboard');
+      } else {
+        Navigator.pushReplacementNamed(context, 'login');
+      }
+    });
   }
 
   @override
@@ -36,6 +44,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 fit: BoxFit.contain,
               ),
             ),
+            SizedBox(height: 20),
+            CircularProgressIndicator(),
           ],
         ),
       ),

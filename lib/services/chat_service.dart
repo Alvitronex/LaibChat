@@ -1,0 +1,190 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:frontend/models/conversation.dart';
+import 'package:frontend/models/message.dart';
+import 'package:frontend/models/user.dart';
+import 'package:frontend/services/server.dart';
+import 'package:http/http.dart' as http;
+
+class ChatService extends ChangeNotifier {
+  final Servidor servidor = Servidor();
+  List<Conversation> _conversations = [];
+  List<User> _availableUsers = [];
+  Map<int, List<Message>> _messages = {};
+  
+  // Getters
+  List<Conversation> get conversations => _conversations;
+  List<User> get availableUsers => _availableUsers;
+  List<Message> getMessages(int conversationId) => _messages[conversationId] ?? [];
+
+  // Obtener todas las conversaciones
+  Future<List<Conversation>> fetchConversations(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${servidor.baseUrl}/conversations'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> conversationsJson = json.decode(response.body);
+        _conversations = conversationsJson
+            .map((json) => Conversation.fromJson(json))
+            .toList();
+        notifyListeners();
+        return _conversations;
+      } else {
+        throw Exception('Error al cargar conversaciones: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Obtener mensajes de una conversación
+  Future<List<Message>> fetchMessages(String token, int conversationId, int currentUserId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${servidor.baseUrl}/conversations/$conversationId/messages'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> messagesJson = json.decode(response.body);
+        final List<Message> messages = messagesJson.map((json) {
+          // Añadir isMe basado en el ID del usuario
+          final message = Message.fromJson(json);
+          return Message(
+            id: message.id,
+            conversationId: message.conversationId,
+            userId: message.userId,
+            user: message.user,
+            text: message.text,
+            isMe: message.userId == currentUserId,
+            read: message.read,
+            time: message.time,
+            createdAt: message.createdAt,
+            updatedAt: message.updatedAt,
+          );
+        }).toList();
+        
+        _messages[conversationId] = messages;
+        notifyListeners();
+        return messages;
+      } else {
+        throw Exception('Error al cargar mensajes: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Enviar un mensaje
+  Future<Message?> sendMessage(String token, int conversationId, String content, int currentUserId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${servidor.baseUrl}/conversations/$conversationId/messages'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+        body: json.encode({'content': content}),
+      );
+
+      if (response.statusCode == 200) {
+        final messageJson = json.decode(response.body);
+        final message = Message.fromJson(messageJson);
+        
+        // Crear mensaje con isMe=true ya que lo estamos enviando nosotros
+        final newMessage = Message(
+          id: message.id,
+          conversationId: message.conversationId,
+          userId: message.userId,
+          user: message.user,
+          text: message.text,
+          isMe: true,  // Mensaje enviado por el usuario actual
+          read: message.read,
+          time: message.time,
+          createdAt: message.createdAt,
+          updatedAt: message.updatedAt,
+        );
+        
+        // Añadir a la lista de mensajes
+        if (_messages.containsKey(conversationId)) {
+          _messages[conversationId]!.add(newMessage);
+        } else {
+          _messages[conversationId] = [newMessage];
+        }
+        
+        notifyListeners();
+        return newMessage;
+      } else {
+        throw Exception('Error al enviar mensaje: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Obtener usuarios disponibles para chat
+  Future<List<User>> fetchAvailableUsers(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${servidor.baseUrl}/chat/users'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> usersJson = json.decode(response.body);
+        _availableUsers = usersJson.map((json) => User.fromJson(json)).toList();
+        notifyListeners();
+        return _availableUsers;
+      } else {
+        throw Exception('Error al cargar usuarios: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Crear una nueva conversación
+  Future<Conversation?> createConversation(String token, List<int> userIds, {String? name, bool isGroup = false}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${servidor.baseUrl}/conversations'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+        body: json.encode({
+          'user_ids': userIds,
+          'name': name,
+          'is_group': isGroup,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        final conversation = Conversation.fromJson(responseData['conversation']);
+        
+        // Añadir a la lista de conversaciones
+        _conversations.add(conversation);
+        notifyListeners();
+        
+        return conversation;
+      } else {
+        throw Exception('Error al crear conversación: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+}

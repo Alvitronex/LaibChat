@@ -3,8 +3,6 @@ import 'package:frontend/screens/screens.dart';
 import 'package:frontend/services/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../screens/login/home.dart';
-
 class SideBar extends StatelessWidget {
   const SideBar({super.key});
 
@@ -54,7 +52,7 @@ class SideBar extends StatelessWidget {
                     ),
                   ),
                 ),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage("assets/utils/paisaje.jpg"),
                     fit: BoxFit.cover,
@@ -67,7 +65,8 @@ class SideBar extends StatelessWidget {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const Home()),
+                      MaterialPageRoute(
+                          builder: (context) => const Dashboard()),
                     );
                   }),
               const Divider(
