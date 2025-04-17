@@ -10,11 +10,23 @@ class AuthService extends ChangeNotifier {
   User? _user;
   String? _token;
 
-  bool get authenticated => _isLoggedIn;
+  bool get  authenticated => _isLoggedIn;
   User get user => _user!;
+  // Añadir getter para token
+  String? get token => _token;
+
   Servidor servidor = Servidor();
 
   final _storage = const FlutterSecureStorage();
+
+  // Verificar token guardado al inicio
+  Future<bool> checkToken() async {
+    final token = await _storage.read(key: 'token');
+    if (token != null) {
+      return await tryToken(token);
+    }
+    return false;
+  }
 
   Future<String> login(
     String email,
@@ -22,7 +34,7 @@ class AuthService extends ChangeNotifier {
     String deviceName,
   ) async {
     try {
-      // Clean previous auth state to prevent unauthorized access
+      // Limpiar estado anterior
       cleanUp();
 
       final response =
@@ -56,11 +68,8 @@ class AuthService extends ChangeNotifier {
     String password,
   ) async {
     try {
-//limpiando la cache
+      // Limpiar cache
       cleanUp();
-
-      // ignore: avoid_print
-      print('Intentando registrar: $name, $email, $phone');
 
       int phoneInt;
       try {
@@ -74,13 +83,9 @@ class AuthService extends ChangeNotifier {
               body: ({
                 'name': name,
                 'email': email,
-                'phone': phoneInt
-                    .toString(), // Enviamos como string pero contiene solo un número
+                'phone': phoneInt.toString(),
                 'password': password,
               }));
-      // ignore: avoid_print
-      print(
-          'Respuesta del servidor: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         String token = response.body.toString();
@@ -107,8 +112,6 @@ class AuthService extends ChangeNotifier {
             headers: {'Authorization': 'Bearer $token'});
 
         if (response.statusCode == 200) {
-          // ignore: avoid_print
-          print(response.body);
           _isLoggedIn = true;
           _user = User.fromJson(jsonDecode(response.body));
           _token = token;
@@ -116,14 +119,12 @@ class AuthService extends ChangeNotifier {
           notifyListeners();
           return true;
         } else {
-          // Invalid token or unauthorized
+          // Token inválido o no autorizado
           cleanUp();
           notifyListeners();
           return false;
         }
       } catch (e) {
-        // ignore: avoid_print
-        print(e);
         cleanUp();
         notifyListeners();
         return false;
@@ -132,28 +133,27 @@ class AuthService extends ChangeNotifier {
   }
 
   void storeToken(String token) async {
-    _storage.write(key: 'token', value: token);
-    // print(token);
+    await _storage.write(key: 'token', value: token);
   }
 
-  void logout() async {
+  Future<void> logout() async {
     try {
-      // ignore: unused_local_variable
-      final response = await http.get(
-          Uri.parse('${servidor.baseUrl}/user/revoke'),
-          headers: {'Authorization': 'Bearer $_token'});
+      if (_token != null) {
+        await http.get(Uri.parse('${servidor.baseUrl}/user/revoke'),
+            headers: {'Authorization': 'Bearer $_token'});
+      }
+    } catch (e) {
+      // Manejar errores silenciosamente
+    } finally {
       cleanUp();
       notifyListeners();
-      // print("Imprimiendo desde el servies");
-    } catch (e) {
-      // ignore: avoid_print
-      print(e);
     }
   }
 
   void cleanUp() async {
     _user = null;
     _isLoggedIn = false;
+    _token = null;
     await _storage.delete(key: 'token');
   }
 }

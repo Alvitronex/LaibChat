@@ -1,25 +1,18 @@
 import 'package:flutter/material.dart';
-
-class Message {
-  final String text;
-  final bool isMe;
-  final String time;
-
-  Message({
-    required this.text,
-    required this.isMe,
-    required this.time,
-  });
-}
+import 'package:frontend/models/models.dart';
+import 'package:provider/provider.dart';
+import 'package:frontend/services/services.dart';
 
 class ChatDetailScreen extends StatefulWidget {
+  final int conversationId;
   final String name;
-  final String? imageUrl; // Hacerlo opcional
+  final String? imageUrl;
 
   const ChatDetailScreen({
     Key? key,
+    required this.conversationId,
     required this.name,
-    this.imageUrl, // Ya no es required
+    this.imageUrl,
   }) : super(key: key);
 
   @override
@@ -29,23 +22,48 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-
-  List<Message> messages = [
-    Message(text: '¡Hola! ¿Cómo estás?', isMe: false, time: '10:15'),
-    Message(text: 'Muy bien, ¿y tú?', isMe: true, time: '10:16'),
-    Message(
-        text: 'También, gracias.\n¿Listo para la reunión?',
-        isMe: false,
-        time: '10:17'),
-    Message(text: 'Sí, en unos minutos me conecto', isMe: true, time: '10:18'),
-  ];
+  bool _isLoading = true;
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom();
-    });
+    _loadMessages();
+  }
+
+  Future<void> _loadMessages() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final chatService = Provider.of<ChatService>(context, listen: false);
+
+    if (!authService.authenticated) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'No has iniciado sesión';
+      });
+      return;
+    }
+
+    try {
+      final token = authService.token;
+      if (token != null) {
+        await chatService.fetchMessages(
+            token, widget.conversationId, authService.user.id);
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Desplazar al final cuando se carguen los mensajes
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Error al cargar mensajes: $e';
+      });
+    }
   }
 
   void _scrollToBottom() {
@@ -58,31 +76,45 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isNotEmpty) {
-      final now = DateTime.now();
-      final formattedTime =
-          "${now.hour}:${now.minute.toString().padLeft(2, '0')}";
+  Future<void> _sendMessage() async {
+    if (_messageController.text.trim().isEmpty) return;
 
-      final newMessage = Message(
-        text: _messageController.text.trim(),
-        isMe: true,
-        time: formattedTime,
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final chatService = Provider.of<ChatService>(context, listen: false);
+
+    if (!authService.authenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No has iniciado sesión')),
       );
+      return;
+    }
 
-      setState(() {
-        messages.add(newMessage);
-        _messageController.clear();
-      });
+    final content = _messageController.text.trim();
+    _messageController.clear();
 
+    try {
+      final token = authService.token;
+      if (token != null) {
+        await chatService.sendMessage(
+            token, widget.conversationId, content, authService.user.id);
+      }
+
+      // Desplazar al final cuando se envía un mensaje
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToBottom();
       });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al enviar mensaje: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final chatService = Provider.of<ChatService>(context);
+    final messages = chatService.getMessages(widget.conversationId);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -95,16 +127,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         title: Row(
           children: [
             CircleAvatar(
-              // Manejo seguro de la imagen
               backgroundImage:
                   widget.imageUrl != null && widget.imageUrl!.isNotEmpty
                       ? NetworkImage(widget.imageUrl!) as ImageProvider
-                      : AssetImage("assets/utils/default_avatar.png")
-                          as ImageProvider,
-              backgroundColor: Colors.grey[300],
-              child: (widget.imageUrl == null || widget.imageUrl!.isEmpty) &&
-                      !hasAssetImage()
-                  ? Text(widget.name.isNotEmpty ? widget.name[0] : "")
+                      : null,
+              backgroundColor: Colors.purple[100],
+              child: (widget.imageUrl == null || widget.imageUrl!.isEmpty)
+                  ? Text(
+                      widget.name.isNotEmpty ? widget.name[0] : "",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
                   : null,
             ),
             const SizedBox(width: 10),
@@ -122,17 +157,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       body: Column(
         children: [
           const Divider(height: 1),
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(10),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final message = messages[index];
-                return MessageBubble(message: message);
-              },
-            ),
-          ),
+          // Contenido principal
+          _isLoading
+              ? const Expanded(
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _errorMessage.isNotEmpty
+                  ? Expanded(
+                      child: Center(child: Text(_errorMessage)),
+                    )
+                  : Expanded(
+                      child: messages.isEmpty
+                          ? const Center(child: Text('No hay mensajes'))
+                          : ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.all(10),
+                              itemCount: messages.length,
+                              itemBuilder: (context, index) {
+                                final message = messages[index];
+                                return MessageBubble(message: message);
+                              },
+                            ),
+                    ),
+          // Input para escribir mensaje
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
             decoration: BoxDecoration(
@@ -187,15 +234,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ],
       ),
     );
-  }
-
-  // Comprobación para ver si tenemos una imagen de avatar por defecto
-  bool hasAssetImage() {
-    try {
-      return AssetImage("assets/utils/default_avatar.png") != null;
-    } catch (_) {
-      return false;
-    }
   }
 }
 
