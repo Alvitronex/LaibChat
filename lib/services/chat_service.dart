@@ -21,6 +21,8 @@ class ChatService extends ChangeNotifier {
   // Obtener todas las conversaciones
   Future<List<Conversation>> fetchConversations(String token) async {
     try {
+      print(
+          'Obteniendo conversaciones con token: ${token.substring(0, 10)}...');
       final response = await http.get(
         Uri.parse('${servidor.baseUrl}/conversations'),
         headers: {
@@ -29,15 +31,46 @@ class ChatService extends ChangeNotifier {
         },
       );
 
-      print('Fetch conversations response status: ${response.statusCode}');
-      print('Fetch conversations response body: ${response.body}');
+      print(
+          'Respuesta del servidor (fetchConversations): ${response.statusCode}');
+
+      // Imprimir el cuerpo de la respuesta si es pequeño o solo primeros caracteres si es grande
+      if (response.body.length < 300) {
+        print('Cuerpo: ${response.body}');
+      } else {
+        print(
+            'Cuerpo (primeros 300 caracteres): ${response.body.substring(0, 300)}...');
+      }
 
       if (response.statusCode == 200) {
         try {
-          final List<dynamic> conversationsJson = json.decode(response.body);
-          _conversations = conversationsJson
-              .map((json) => Conversation.fromJson(json))
-              .toList();
+          // Decodificar la respuesta JSON
+          final dynamic decodedResponse = json.decode(response.body);
+          List<dynamic> conversationsJson;
+
+          // Manejar diferentes formatos de respuesta
+          if (decodedResponse is List) {
+            conversationsJson = decodedResponse;
+          } else if (decodedResponse is Map &&
+              decodedResponse.containsKey('data')) {
+            conversationsJson = decodedResponse['data'] as List;
+          } else {
+            throw Exception('Formato de respuesta inesperado');
+          }
+
+          print('Procesando ${conversationsJson.length} conversaciones');
+
+          // Convertir cada elemento JSON a objeto Conversation
+          _conversations = [];
+          for (var i = 0; i < conversationsJson.length; i++) {
+            try {
+              final conversation = Conversation.fromJson(conversationsJson[i]);
+              _conversations.add(conversation);
+            } catch (e) {
+              print('Error al procesar conversación $i: $e');
+            }
+          }
+
           notifyListeners();
           return _conversations;
         } catch (e) {
@@ -45,6 +78,7 @@ class ChatService extends ChangeNotifier {
           throw Exception('Error al procesar datos de conversaciones: $e');
         }
       } else {
+        print('Error HTTP: ${response.statusCode}, Cuerpo: ${response.body}');
         throw Exception(
             'Error al cargar conversaciones: ${response.statusCode}');
       }
@@ -58,6 +92,7 @@ class ChatService extends ChangeNotifier {
   Future<List<Message>> fetchMessages(
       String token, int conversationId, int currentUserId) async {
     try {
+      print('Obteniendo mensajes para conversación $conversationId');
       final response = await http.get(
         Uri.parse('${servidor.baseUrl}/conversations/$conversationId/messages'),
         headers: {
@@ -66,33 +101,64 @@ class ChatService extends ChangeNotifier {
         },
       );
 
-      print('Fetch messages response status: ${response.statusCode}');
-      if (response.body.length < 500) {
-        print('Fetch messages response body: ${response.body}');
+      print('Respuesta del servidor (fetchMessages): ${response.statusCode}');
+
+      // Para depuración, imprimir la respuesta si es pequeña
+      if (response.body.length < 300) {
+        print('Cuerpo: ${response.body}');
       } else {
-        print('Fetch messages response body: (respuesta larga)');
+        print(
+            'Cuerpo (primeros 300 caracteres): ${response.body.substring(0, 300)}...');
       }
 
       if (response.statusCode == 200) {
         try {
-          final List<dynamic> messagesJson = json.decode(response.body);
-          final List<Message> messages = messagesJson.map((json) {
-            // Añadir isMe basado en el ID del usuario
-            final message = Message.fromJson(json);
-            return Message(
-              id: message.id,
-              conversationId: message.conversationId,
-              userId: message.userId,
-              user: message.user,
-              text: message.text,
-              isMe: message.userId == currentUserId,
-              read: message.read,
-              time: message.time,
-              createdAt: message.createdAt,
-              updatedAt: message.updatedAt,
-            );
-          }).toList();
+          // Decodificar la respuesta JSON
+          final dynamic decodedResponse = json.decode(response.body);
+          List<dynamic> messagesJson;
 
+          // Manejar diferentes formatos de respuesta
+          if (decodedResponse is List) {
+            messagesJson = decodedResponse;
+          } else if (decodedResponse is Map &&
+              decodedResponse.containsKey('data')) {
+            messagesJson = decodedResponse['data'] as List;
+          } else {
+            throw Exception('Formato de respuesta inesperado');
+          }
+
+          print('Procesando ${messagesJson.length} mensajes');
+
+          // Crear lista para los mensajes procesados
+          final List<Message> messages = [];
+
+          // Procesar cada mensaje
+          for (var i = 0; i < messagesJson.length; i++) {
+            try {
+              // Parsear el mensaje base
+              Message message = Message.fromJson(messagesJson[i]);
+
+              // Crear una nueva instancia con el indicador isMe basado en el ID de usuario actual
+              final newMessage = Message(
+                id: message.id,
+                conversationId: message.conversationId,
+                userId: message.userId,
+                user: message.user,
+                text: message.text,
+                isMe: message.userId == currentUserId,
+                read: message.read,
+                time: message.time,
+                createdAt: message.createdAt,
+                updatedAt: message.updatedAt,
+              );
+
+              messages.add(newMessage);
+            } catch (e) {
+              print('Error al procesar mensaje $i: $e');
+            }
+          }
+
+          // Guardar los mensajes procesados
           _messages[conversationId] = messages;
           notifyListeners();
           return messages;
@@ -101,6 +167,7 @@ class ChatService extends ChangeNotifier {
           throw Exception('Error al procesar datos de mensajes: $e');
         }
       } else {
+        print('Error HTTP: ${response.statusCode}, Cuerpo: ${response.body}');
         throw Exception('Error al cargar mensajes: ${response.statusCode}');
       }
     } catch (e) {
@@ -113,28 +180,45 @@ class ChatService extends ChangeNotifier {
   Future<Message?> sendMessage(String token, int conversationId, String content,
       int currentUserId) async {
     try {
+      print('Enviando mensaje a conversación $conversationId: "$content"');
+
+      // Crear el cuerpo de la solicitud
+      final Map<String, dynamic> requestBody = {'content': content};
+      final String encodedBody = json.encode(requestBody);
+
+      print('Cuerpo codificado: $encodedBody');
+
       final response = await http.post(
         Uri.parse('${servidor.baseUrl}/conversations/$conversationId/messages'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'
         },
-        body: json.encode({'content': content}),
+        body: encodedBody,
       );
 
-      print('Send message response status: ${response.statusCode}');
-      print('Send message response body: ${response.body}');
+      print('Respuesta del servidor (sendMessage): ${response.statusCode}');
+      print('Cuerpo de respuesta: ${response.body}');
 
       if (response.statusCode == 200) {
         try {
+          // Decodificar la respuesta
           final messageJson = json.decode(response.body);
-          final message = Message.fromJson(messageJson);
+
+          // Determinar si la respuesta es el mensaje directo o está dentro de un objeto
+          final Map<String, dynamic> messageData =
+              messageJson is Map && messageJson.containsKey('data')
+                  ? messageJson['data']
+                  : messageJson;
+
+          // Crear el objeto de mensaje
+          final message = Message.fromJson(messageData);
 
           // Crear mensaje con isMe=true ya que lo estamos enviando nosotros
           final newMessage = Message(
             id: message.id,
             conversationId: message.conversationId,
-            userId: message.userId,
+            userId: message.userId ?? currentUserId,
             user: message.user,
             text: message.text,
             isMe: true, // Mensaje enviado por el usuario actual
@@ -155,9 +239,37 @@ class ChatService extends ChangeNotifier {
           return newMessage;
         } catch (e) {
           print('Error decodificando mensaje enviado: $e');
-          throw Exception('Error al procesar datos del mensaje: $e');
+
+          // A pesar del error, crear un mensaje local para mostrar
+          final now = DateTime.now();
+          final formattedTime =
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+          final newMessage = Message(
+            id: null,
+            conversationId: conversationId,
+            userId: currentUserId,
+            user: null,
+            text: content,
+            isMe: true,
+            read: false,
+            time: formattedTime,
+            createdAt: now,
+            updatedAt: now,
+          );
+
+          // Añadir a la lista de mensajes
+          if (_messages.containsKey(conversationId)) {
+            _messages[conversationId]!.add(newMessage);
+          } else {
+            _messages[conversationId] = [newMessage];
+          }
+
+          notifyListeners();
+          return newMessage;
         }
       } else {
+        print('Error HTTP: ${response.statusCode}, Cuerpo: ${response.body}');
         throw Exception('Error al enviar mensaje: ${response.statusCode}');
       }
     } catch (e) {
@@ -169,6 +281,7 @@ class ChatService extends ChangeNotifier {
   // Obtener usuarios disponibles para chat
   Future<List<User>> fetchAvailableUsers(String token) async {
     try {
+      print('Obteniendo usuarios disponibles');
       final response = await http.get(
         Uri.parse('${servidor.baseUrl}/chat/users'),
         headers: {
@@ -177,14 +290,39 @@ class ChatService extends ChangeNotifier {
         },
       );
 
-      print('Fetch available users response status: ${response.statusCode}');
-      print('Fetch available users response body: ${response.body}');
+      print(
+          'Respuesta del servidor (fetchAvailableUsers): ${response.statusCode}');
+      print('Cuerpo: ${response.body}');
 
       if (response.statusCode == 200) {
         try {
-          final List<dynamic> usersJson = json.decode(response.body);
-          _availableUsers =
-              usersJson.map((json) => User.fromJson(json)).toList();
+          // Decodificar la respuesta
+          final dynamic decodedResponse = json.decode(response.body);
+          List<dynamic> usersJson;
+
+          // Manejar diferentes formatos de respuesta
+          if (decodedResponse is List) {
+            usersJson = decodedResponse;
+          } else if (decodedResponse is Map &&
+              decodedResponse.containsKey('data')) {
+            usersJson = decodedResponse['data'] as List;
+          } else {
+            throw Exception('Formato de respuesta inesperado');
+          }
+
+          print('Procesando ${usersJson.length} usuarios');
+
+          // Procesar cada usuario
+          _availableUsers = [];
+          for (var i = 0; i < usersJson.length; i++) {
+            try {
+              final user = User.fromJson(usersJson[i]);
+              _availableUsers.add(user);
+            } catch (e) {
+              print('Error al procesar usuario $i: $e');
+            }
+          }
+
           notifyListeners();
           return _availableUsers;
         } catch (e) {
@@ -192,6 +330,7 @@ class ChatService extends ChangeNotifier {
           throw Exception('Error al procesar datos de usuarios: $e');
         }
       } else {
+        print('Error HTTP: ${response.statusCode}, Cuerpo: ${response.body}');
         throw Exception('Error al cargar usuarios: ${response.statusCode}');
       }
     } catch (e) {
@@ -204,27 +343,41 @@ class ChatService extends ChangeNotifier {
   Future<Conversation?> createConversation(String token, List<int> userIds,
       {String? name, bool isGroup = false}) async {
     try {
+      print('Creando conversación con usuarios: $userIds');
+
+      // Crear el cuerpo de la solicitud
+      final Map<String, dynamic> requestBody = {
+        'user_ids': userIds,
+        'name': name,
+        'is_group': isGroup,
+      };
+
       final response = await http.post(
         Uri.parse('${servidor.baseUrl}/conversations'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'
         },
-        body: json.encode({
-          'user_ids': userIds,
-          'name': name,
-          'is_group': isGroup,
-        }),
+        body: json.encode(requestBody),
       );
 
-      print('Create conversation response status: ${response.statusCode}');
-      print('Create conversation response body: ${response.body}');
+      print(
+          'Respuesta del servidor (createConversation): ${response.statusCode}');
+      print('Cuerpo: ${response.body}');
 
       if (response.statusCode == 200) {
         try {
+          // Decodificar la respuesta
           final responseData = json.decode(response.body);
-          final conversation =
-              Conversation.fromJson(responseData['conversation']);
+
+          // Determinar dónde está el objeto de conversación
+          final conversationData =
+              responseData is Map && responseData.containsKey('conversation')
+                  ? responseData['conversation']
+                  : responseData;
+
+          // Crear el objeto de conversación
+          final conversation = Conversation.fromJson(conversationData);
 
           // Añadir a la lista de conversaciones
           _conversations.add(conversation);
@@ -236,6 +389,7 @@ class ChatService extends ChangeNotifier {
           throw Exception('Error al procesar datos de la conversación: $e');
         }
       } else {
+        print('Error HTTP: ${response.statusCode}, Cuerpo: ${response.body}');
         throw Exception('Error al crear conversación: ${response.statusCode}');
       }
     } catch (e) {
