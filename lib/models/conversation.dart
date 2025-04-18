@@ -31,10 +31,28 @@ class Conversation {
       lastMsg = Message.fromJson(json['last_message']);
     }
 
+    // Corregir el manejo del campo is_group
+    bool isGroupValue = false;
+    if (json['is_group'] != null) {
+      // Si es un entero, convertir a booleano (0 = false, cualquier otro valor = true)
+      if (json['is_group'] is int) {
+        isGroupValue = json['is_group'] != 0;
+      }
+      // Si ya es booleano, usarlo directamente
+      else if (json['is_group'] is bool) {
+        isGroupValue = json['is_group'];
+      }
+      // Si es string, convertir a booleano
+      else if (json['is_group'] is String) {
+        isGroupValue =
+            json['is_group'].toLowerCase() == 'true' || json['is_group'] == '1';
+      }
+    }
+
     return Conversation(
       id: json['id'],
       name: json['name'] ?? '',
-      isGroup: json['is_group'] ?? false,
+      isGroup: isGroupValue,
       users: usersList,
       lastMessage: lastMsg,
       createdAt: DateTime.parse(json['created_at']),

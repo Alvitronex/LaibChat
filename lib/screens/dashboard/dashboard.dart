@@ -14,11 +14,21 @@ class Dashboard extends StatefulWidget {
 class _DashboardState extends State<Dashboard> {
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _showWelcome = true;
 
   @override
   void initState() {
     super.initState();
     _loadConversations();
+
+    // Configuramos que el mensaje de bienvenida desaparezca después de 5 segundos
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _showWelcome = false;
+        });
+      }
+    });
   }
 
   Future<void> _loadConversations() async {
@@ -123,208 +133,263 @@ class _DashboardState extends State<Dashboard> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage.isNotEmpty
-              ? Center(child: Text(_errorMessage))
-              : Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          // Contenido principal
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMessage.isNotEmpty
+                  ? Center(child: Text(_errorMessage))
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Chat',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh),
-                            onPressed: () {
-                              setState(() {
-                                _isLoading = true;
-                                _errorMessage = '';
-                              });
-                              _loadConversations();
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Barra de búsqueda
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.search, color: Colors.grey[600]),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                decoration: InputDecoration(
-                                  hintText: 'Buscar',
-                                  border: InputBorder.none,
-                                  hintStyle: TextStyle(color: Colors.grey[600]),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Chat',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              IconButton(
+                                icon: const Icon(Icons.refresh),
+                                onPressed: () {
+                                  setState(() {
+                                    _isLoading = true;
+                                    _errorMessage = '';
+                                  });
+                                  _loadConversations();
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          // Barra de búsqueda
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(30),
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: chatService.conversations.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text('No hay conversaciones'),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        // Aquí iría la lógica para iniciar una nueva conversación
-                                      },
-                                      child: const Text('Iniciar chat'),
+                            child: Row(
+                              children: [
+                                Icon(Icons.search, color: Colors.grey[600]),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    decoration: InputDecoration(
+                                      hintText: 'Buscar',
+                                      border: InputBorder.none,
+                                      hintStyle:
+                                          TextStyle(color: Colors.grey[600]),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              )
-                            : ListView.builder(
-                                itemCount: chatService.conversations.length,
-                                itemBuilder: (context, index) {
-                                  final conversation =
-                                      chatService.conversations[index];
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: chatService.conversations.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Text('No hay conversaciones'),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            // Aquí iría la lógica para iniciar una nueva conversación
+                                            _showNewChatDialog(context);
+                                          },
+                                          child: const Text('Iniciar chat'),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    itemCount: chatService.conversations.length,
+                                    itemBuilder: (context, index) {
+                                      final conversation =
+                                          chatService.conversations[index];
 
-                                  // Obtener el nombre de la conversación
-                                  String conversationName = '';
-                                  String message = '';
-                                  String time = '';
+                                      // Obtener el nombre de la conversación
+                                      String conversationName = '';
+                                      String message = '';
+                                      String time = '';
 
-                                  if (conversation.isGroup) {
-                                    // Si es grupo, usar el nombre del grupo
-                                    conversationName = conversation.name;
-                                  } else if (conversation.users.isNotEmpty) {
-                                    // Si no es grupo, usar el nombre del otro usuario (no el actual)
-                                    final otherUsers = conversation.users
-                                        .where((user) =>
-                                            user.id != authService.user.id)
-                                        .toList();
+                                      if (conversation.isGroup) {
+                                        // Si es grupo, usar el nombre del grupo
+                                        conversationName = conversation.name;
+                                      } else if (conversation
+                                          .users.isNotEmpty) {
+                                        // Si no es grupo, usar el nombre del otro usuario (no el actual)
+                                        final otherUsers = conversation.users
+                                            .where((user) =>
+                                                user.id != authService.user.id)
+                                            .toList();
 
-                                    if (otherUsers.isNotEmpty) {
-                                      conversationName = otherUsers.first.name;
-                                    }
-                                  }
+                                        if (otherUsers.isNotEmpty) {
+                                          conversationName =
+                                              otherUsers.first.name;
+                                        }
+                                      }
 
-                                  // Información del último mensaje
-                                  if (conversation.lastMessage != null) {
-                                    message = conversation.lastMessage!.text;
-                                    time = conversation.lastMessage!.time;
-                                  } else {
-                                    message = 'No hay mensajes';
-                                    final now = DateTime.now();
-                                    time =
-                                        '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
-                                  }
+                                      // Información del último mensaje
+                                      if (conversation.lastMessage != null) {
+                                        message =
+                                            conversation.lastMessage!.text;
+                                        time = conversation.lastMessage!.time;
+                                      } else {
+                                        message = 'No hay mensajes';
+                                        final now = DateTime.now();
+                                        time =
+                                            '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+                                      }
 
-                                  return InkWell(
-                                    onTap: () {
-                                      // Navegar a la pantalla de chat
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              ChatDetailScreen(
-                                            conversationId: conversation.id,
-                                            name: conversationName,
+                                      return InkWell(
+                                        onTap: () {
+                                          // Navegar a la pantalla de chat
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  ChatDetailScreen(
+                                                conversationId: conversation.id,
+                                                name: conversationName,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 12),
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              bottom: BorderSide(
+                                                color: Colors.grey[200]!,
+                                                width: 1,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              CircleAvatar(
+                                                radius: 24,
+                                                backgroundColor:
+                                                    Colors.purple[100],
+                                                child: Text(
+                                                  conversationName.isNotEmpty
+                                                      ? conversationName[0]
+                                                      : '',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      conversationName,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 16,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      message,
+                                                      style: TextStyle(
+                                                        color: Colors.grey[600],
+                                                        fontSize: 14,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Text(
+                                                time,
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       );
                                     },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 12),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: Colors.grey[200]!,
-                                            width: 1,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          CircleAvatar(
-                                            radius: 24,
-                                            backgroundColor: Colors.purple[100],
-                                            child: Text(
-                                              conversationName.isNotEmpty
-                                                  ? conversationName[0]
-                                                  : '',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  conversationName,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  message,
-                                                  style: TextStyle(
-                                                    color: Colors.grey[600],
-                                                    fontSize: 14,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Text(
-                                            time,
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          FloatingActionButton(
-                                            backgroundColor: Colors.orange,
-                                            child: const Icon(Icons.message),
-                                            onPressed: () {
-                                              // Mostrar diálogo para seleccionar destinatario
-                                              _showNewChatDialog(context);
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                                  ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+
+          // Botón flotante para nuevo chat
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              backgroundColor: Colors.orange,
+              child: const Icon(Icons.message),
+              onPressed: () {
+                // Mostrar diálogo para seleccionar destinatario
+                _showNewChatDialog(context);
+              },
+            ),
+          ),
+
+          // Mensaje de bienvenida
+          if (_showWelcome)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                color: Colors.green[100],
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.green),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '¡Bienvenido, ${authService.user.name}!!',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        setState(() {
+                          _showWelcome = false;
+                        });
+                      },
+                    ),
+                  ],
                 ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
