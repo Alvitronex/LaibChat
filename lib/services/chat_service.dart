@@ -135,28 +135,24 @@ class ChatService extends ChangeNotifier {
           // Procesar cada mensaje
           for (var i = 0; i < messagesJson.length; i++) {
             try {
-              // Parsear el mensaje base
-              Message message = Message.fromJson(messagesJson[i]);
+              final messageData = messagesJson[i];
 
-              // Crear una nueva instancia con el indicador isMe basado en el ID de usuario actual
-              final newMessage = Message(
-                id: message.id,
-                conversationId: message.conversationId,
-                userId: message.userId,
-                user: message.user,
-                text: message.text,
-                isMe: message.userId == currentUserId,
-                read: message.read,
-                time: message.time,
-                createdAt: message.createdAt,
-                updatedAt: message.updatedAt,
-              );
+              // Añadir explícitamente la propiedad is_me para mejor manejo
+              messageData['is_me'] = messageData['user_id'] == currentUserId;
 
-              messages.add(newMessage);
+              // Parsear el mensaje con la propiedad is_me ya incluida
+              Message message = Message.fromJson(messageData);
+              messages.add(message);
             } catch (e) {
               print('Error al procesar mensaje $i: $e');
             }
           }
+
+          // Ordenar mensajes por fecha de creación (más antiguos primero)
+          messages.sort((a, b) {
+            if (a.createdAt == null || b.createdAt == null) return 0;
+            return a.createdAt!.compareTo(b.createdAt!);
+          });
 
           // Guardar los mensajes procesados
           _messages[conversationId] = messages;
@@ -177,16 +173,42 @@ class ChatService extends ChangeNotifier {
   }
 
   // Enviar un mensaje
+  // Reemplaza el método sendMessage en ChatService.dart con esta versión optimizada
   Future<Message?> sendMessage(String token, int conversationId, String content,
       int currentUserId) async {
     try {
-      print('Enviando mensaje a conversación $conversationId: "$content"');
+      // Crear mensaje local inmediatamente
+      final now = DateTime.now();
+      final formattedTime =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
-      // Crear el cuerpo de la solicitud
+      final localMessage = Message(
+        id: null,
+        conversationId: conversationId,
+        userId: currentUserId,
+        user: null,
+        text: content,
+        isMe: true,
+        read: false,
+        time: formattedTime,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      // Actualizar el estado local inmediatamente (mejor UX)
+      if (_messages.containsKey(conversationId)) {
+        _messages[conversationId]!.add(localMessage);
+      } else {
+        _messages[conversationId] = [localMessage];
+      }
+
+      // Notificar a los listeners inmediatamente (actualiza la UI)
+      notifyListeners();
+
+      // Enviar mensaje al servidor en segundo plano
+      print('Enviando mensaje a conversación $conversationId: "$content"');
       final Map<String, dynamic> requestBody = {'content': content};
       final String encodedBody = json.encode(requestBody);
-
-      print('Cuerpo codificado: $encodedBody');
 
       final response = await http.post(
         Uri.parse('${servidor.baseUrl}/conversations/$conversationId/messages'),
@@ -197,83 +219,45 @@ class ChatService extends ChangeNotifier {
         body: encodedBody,
       );
 
-      print('Respuesta del servidor (sendMessage): ${response.statusCode}');
-      print('Cuerpo de respuesta: ${response.body}');
+      print('Respuesta del servidor: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         try {
-          // Decodificar la respuesta
+          // Procesar respuesta del servidor
           final messageJson = json.decode(response.body);
-
-          // Determinar si la respuesta es el mensaje directo o está dentro de un objeto
           final Map<String, dynamic> messageData =
               messageJson is Map && messageJson.containsKey('data')
                   ? messageJson['data']
                   : messageJson;
 
-          // Crear el objeto de mensaje
-          final message = Message.fromJson(messageData);
+          messageData['is_me'] = true;
 
-          // Crear mensaje con isMe=true ya que lo estamos enviando nosotros
-          final newMessage = Message(
-            id: message.id,
-            conversationId: message.conversationId,
-            userId: message.userId ?? currentUserId,
-            user: message.user,
-            text: message.text,
-            isMe: true, // Mensaje enviado por el usuario actual
-            read: message.read,
-            time: message.time,
-            createdAt: message.createdAt,
-            updatedAt: message.updatedAt,
-          );
+          // Crear objeto de mensaje con datos del servidor
+          final serverMessage = Message.fromJson(messageData);
 
-          // Añadir a la lista de mensajes
+          // Buscar y reemplazar el mensaje local por el del servidor
           if (_messages.containsKey(conversationId)) {
-            _messages[conversationId]!.add(newMessage);
-          } else {
-            _messages[conversationId] = [newMessage];
+            final index = _messages[conversationId]!
+                .indexWhere((m) => m.text == content && m.id == null && m.isMe);
+
+            if (index != -1) {
+              _messages[conversationId]![index] = serverMessage;
+              // Notificar actualización (aunque podría ser innecesario visualmente)
+              notifyListeners();
+            }
           }
 
-          notifyListeners();
-          return newMessage;
+          return serverMessage;
         } catch (e) {
-          print('Error decodificando mensaje enviado: $e');
-
-          // A pesar del error, crear un mensaje local para mostrar
-          final now = DateTime.now();
-          final formattedTime =
-              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
-          final newMessage = Message(
-            id: null,
-            conversationId: conversationId,
-            userId: currentUserId,
-            user: null,
-            text: content,
-            isMe: true,
-            read: false,
-            time: formattedTime,
-            createdAt: now,
-            updatedAt: now,
-          );
-
-          // Añadir a la lista de mensajes
-          if (_messages.containsKey(conversationId)) {
-            _messages[conversationId]!.add(newMessage);
-          } else {
-            _messages[conversationId] = [newMessage];
-          }
-
-          notifyListeners();
-          return newMessage;
+          print('Error al procesar respuesta: $e');
+          return localMessage; // Devolver el mensaje local si hay error
         }
       } else {
-        print('Error HTTP: ${response.statusCode}, Cuerpo: ${response.body}');
-        throw Exception('Error al enviar mensaje: ${response.statusCode}');
+        print('Error HTTP: ${response.statusCode}');
+        return localMessage; // Devolver el mensaje local si hay error HTTP
       }
     } catch (e) {
-      print('Excepción en sendMessage: $e');
+      print('Error en sendMessage: $e');
       throw Exception('Error de conexión: $e');
     }
   }
@@ -396,5 +380,13 @@ class ChatService extends ChangeNotifier {
       print('Excepción en createConversation: $e');
       throw Exception('Error de conexión: $e');
     }
+  }
+
+  // Método para limpiar todas las conversaciones y mensajes (útil al cerrar sesión)
+  void clearAll() {
+    _conversations = [];
+    _availableUsers = [];
+    _messages = {};
+    notifyListeners();
   }
 }

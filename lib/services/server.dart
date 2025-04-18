@@ -1,9 +1,6 @@
-class Servidor {
-  // Uri.parse('http://127.0.0.1:8000/api/sanctum/token'),
-  //http://10.0.2.2:8000/api para movil
-  // Para Flutter Web en desarrollo local
-// final String baseUrl = 'http://localhost:8000/api';
+// Actualiza la clase Servidor en lib/services/server.dart
 
+class Servidor {
   // Cambia esto según el entorno
   static const bool isProduction = false;
 
@@ -18,10 +15,25 @@ class Servidor {
       if (kIsWeb) {
         return 'http://localhost:8000/api'; // Para web local
       } else {
-        return 'http://10.0.2.2:8000/api'; // Para emulador Android/iOS
+        // La dirección 10.0.2.2 es para el emulador de Android
+        // Si estás probando en un dispositivo físico, necesitarás
+        // la dirección IP real de la máquina que ejecuta el servidor
+        return 'http://10.0.2.2:8000/api';
       }
     }
   }
 
-  final headers = <String, String>{'Content-type': 'application/json'};
+  // Encabezados HTTP para las peticiones
+  Map<String, String> getHeaders({String? token}) {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    return headers;
+  }
 }

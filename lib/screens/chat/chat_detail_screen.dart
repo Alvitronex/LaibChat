@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/models/models.dart';
 import 'package:provider/provider.dart';
@@ -19,7 +20,8 @@ class ChatDetailScreen extends StatefulWidget {
   _ChatDetailScreenState createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = true;
@@ -27,37 +29,82 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _isSending = false;
   bool _hasAttemptedLoad = false;
   int _retryCount = 0;
+  Timer? _updateTimer;
+  bool _isScreenVisible = true;
+  bool _isAutoRefresh =
+      false; // Flag para identificar actualizaciones automáticas
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startMessageUpdateTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadMessages();
+      _loadMessages(isAutoRefresh: false);
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Controlar cuando la app está en primer/segundo plano
+    _isScreenVisible = state == AppLifecycleState.resumed;
+
+    // Si vuelve a primer plano, actualizar mensajes
+    if (_isScreenVisible) {
+      _loadMessages(isAutoRefresh: true);
+    }
+  }
+
+  @override
   void dispose() {
+    _updateTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  Future<void> _loadMessages() async {
-    if (_hasAttemptedLoad && _retryCount >= 3) {
+  void _startMessageUpdateTimer() {
+    // Cancelar timer existente si hay uno
+    _updateTimer?.cancel();
+
+    // Crear un nuevo timer con intervalo más largo (30 segundos en vez de 15)
+    _updateTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted && _isScreenVisible) {
+        _loadMessages(isAutoRefresh: true);
+      }
+    });
+  }
+
+  // Añadimos un parámetro para distinguir entre actualizaciones automáticas y manuales
+  Future<void> _loadMessages({bool isAutoRefresh = false}) async {
+    // Solo contamos reintentos para carga manual, no para actualizaciones automáticas
+    if (!isAutoRefresh) {
+      // Solo incrementar contador si hay error previo y estamos intentando manualmente
+      if (_errorMessage.isNotEmpty && _hasAttemptedLoad) {
+        _retryCount += 1;
+      }
+
+      if (_hasAttemptedLoad && _retryCount >= 3) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Demasiados intentos. Intenta de nuevo más tarde.';
+        });
+        return;
+      }
+
       setState(() {
-        _isLoading = false;
-        _errorMessage = 'Demasiados intentos. Intenta de nuevo más tarde.';
+        _hasAttemptedLoad = true;
       });
-      return;
     }
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-      _hasAttemptedLoad = true;
-      _retryCount += 1;
-    });
+    // No mostramos carga ni cambiamos mensajes para actualizaciones automáticas
+    if (!isAutoRefresh) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+    }
 
     final authService = Provider.of<AuthService>(context, listen: false);
     final chatService = Provider.of<ChatService>(context, listen: false);
@@ -73,26 +120,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     try {
       final token = authService.token;
       if (token != null) {
+        print(
+            'Cargando mensajes para la conversación ${widget.conversationId}');
         await chatService.fetchMessages(
             token, widget.conversationId, authService.user.id);
+
+        print('Mensajes cargados con éxito');
+        print(
+            'Cantidad de mensajes: ${chatService.getMessages(widget.conversationId).length}');
       }
 
-      setState(() {
-        _isLoading = false;
-        _errorMessage = '';
-      });
+      // Solo actualizamos UI si no es actualización automática o si hay nuevos mensajes
+      if (!isAutoRefresh ||
+          chatService.getMessages(widget.conversationId).isNotEmpty) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = '';
+        });
 
-      // Desplazar al final cuando se carguen los mensajes
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+        // Desplazar al final cuando se carguen los mensajes
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Error al cargar mensajes. Intenta nuevamente.';
-      });
-      print('Error detallado: $e');
+      // Solo mostramos errores en actualizaciones manuales
+      if (!isAutoRefresh) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Error al cargar mensajes: $e';
+        });
+      }
+      print('Error detallado al cargar mensajes: $e');
     }
+  }
+
+  // Método para reiniciar el contador de intentos
+  void _resetRetryCount() {
+    setState(() {
+      _retryCount = 0;
+      _errorMessage = '';
+    });
+    _loadMessages(isAutoRefresh: false);
   }
 
   void _scrollToBottom() {
@@ -114,6 +183,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     if (message.isEmpty || _isSending) return;
 
+    // Limpiar el campo de texto inmediatamente para mejor experiencia de usuario
+    _messageController.clear();
+
     final authService = Provider.of<AuthService>(context, listen: false);
     final chatService = Provider.of<ChatService>(context, listen: false);
 
@@ -124,7 +196,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return;
     }
 
-    // Crear mensaje local inmediatamente para mejor experiencia de usuario
+    // Crear mensaje local inmediatamente (solo para UI)
     final now = DateTime.now();
     final formattedTime =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
@@ -141,51 +213,73 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       updatedAt: now,
     );
 
-    // Añadir a la lista de mensajes localmente primero
-    final existingMessages = chatService.getMessages(widget.conversationId);
-    final updatedMessages = [...existingMessages, localMessage];
-
-    _messageController.clear();
-
+    // Actualización optimizada de UI: Añadimos el mensaje directamente al estado local
     setState(() {
-      _isSending = true;
+      // Obtenemos los mensajes actuales y añadimos el nuevo mensaje
+      final currentMessages = chatService.getMessages(widget.conversationId);
+      final List<Message> updatedMessages = List.from(currentMessages)
+        ..add(localMessage);
+
+      // Forzamos la actualización del estado visual inmediatamente
+      // Esto es solo para UI, los datos reales siguen en chatService
+      if (mounted) {
+        _isSending = true;
+      }
     });
 
-    // Actualizar mensajes localmente
-    if (mounted) {
-      // Desplazar al final inmediatamente
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
-    }
+    // Desplazar al final inmediatamente
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
 
     try {
       final token = authService.token;
       if (token != null) {
-        await chatService.sendMessage(
-            token, widget.conversationId, message, authService.user.id);
+        // Enviamos el mensaje al servidor de forma asincrónica
+        // pero no esperamos la respuesta para actualizar la UI
+        chatService
+            .sendMessage(
+                token, widget.conversationId, message, authService.user.id)
+            .then((_) {
+          // Opcional: Hacer algo cuando el mensaje se envía exitosamente
+          print('Mensaje enviado con éxito');
+        }).catchError((e) {
+          // Manejo de errores
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error al enviar mensaje: $e'),
+                backgroundColor: Colors.red[100],
+                duration: const Duration(seconds: 3),
+                action: SnackBarAction(
+                  label: 'Reintentar',
+                  onPressed: () => _resendMessage(message),
+                ),
+              ),
+            );
+          }
+        }).whenComplete(() {
+          // Finalmente, actualizamos el estado de envío
+          if (mounted) {
+            setState(() {
+              _isSending = false;
+            });
+          }
+        });
       }
-
-      // El servicio ya ha actualizado la lista de mensajes
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al enviar mensaje: $e'),
-            backgroundColor: Colors.red[100],
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Reintentar',
-              onPressed: () => _resendMessage(message),
-            ),
-          ),
-        );
-      }
-    } finally {
+      // Este try-catch es para errores que puedan ocurrir al iniciar la petición
+      print('Error al iniciar el envío: $e');
       if (mounted) {
         setState(() {
           _isSending = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al iniciar el envío: $e'),
+            backgroundColor: Colors.red[100],
+          ),
+        );
       }
     }
   }
@@ -246,21 +340,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   : null,
             ),
             const SizedBox(width: 10),
-            Text(
-              widget.name,
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                widget.name,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.black87),
-            onPressed: _isLoading ? null : _loadMessages,
+            onPressed: _isLoading
+                ? null
+                : _resetRetryCount, // Usar el método de reinicio
           ),
         ],
       ),
@@ -285,7 +383,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   IconButton(
                     icon: const Icon(Icons.refresh, size: 20),
                     color: Colors.red[700],
-                    onPressed: _loadMessages,
+                    onPressed: _resetRetryCount, // Usar el método de reinicio
                   ),
                 ],
               ),
@@ -339,15 +437,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           controller: _scrollController,
                           padding: const EdgeInsets.all(10),
                           itemCount: messages.length,
+                          // Usar cacheExtent para mantener elementos fuera de pantalla en memoria
+                          cacheExtent: 1000,
+                          // Usar Automatic Keep Alive para mantener los widgets en memoria
+                          addAutomaticKeepAlives: true,
                           itemBuilder: (context, index) {
                             final message = messages[index];
                             final bool showTime = index == 0 ||
                                 _shouldShowTime(messages[index],
                                     index > 0 ? messages[index - 1] : null);
 
-                            return MessageBubble(
-                              message: message,
-                              showTime: showTime,
+                            // Usar key basada en mensaje para optimizar reconstrucción
+                            return KeyedSubtree(
+                              key: ValueKey(
+                                  'msg_${message.id ?? message.time}_${message.text.hashCode}'),
+                              child: MessageBubble(
+                                message: message,
+                                showTime: showTime,
+                              ),
                             );
                           },
                         ),
@@ -454,83 +561,86 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment:
-            message.isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!message.isMe)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.purple[100],
-                child: Text(
-                  message.user?.name.isNotEmpty == true
-                      ? message.user!.name[0].toUpperCase()
-                      : "?",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: message.isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0, vertical: 10.0),
-                  decoration: BoxDecoration(
-                    color: message.isMe ? Colors.orange : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(18.0),
-                  ),
+    // Optimización: usar RepaintBoundary para limitar repintados innecesarios
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Row(
+          mainAxisAlignment:
+              message.isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!message.isMe)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.purple[100],
                   child: Text(
-                    message.text,
-                    style: TextStyle(
-                      color: message.isMe ? Colors.white : Colors.black,
-                      fontSize: 16.0,
+                    message.user?.name.isNotEmpty == true
+                        ? message.user!.name[0].toUpperCase()
+                        : "?",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
                 ),
-                if (showTime)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              ),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: message.isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 10.0),
+                    decoration: BoxDecoration(
+                      color: message.isMe ? Colors.orange : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(18.0),
+                    ),
                     child: Text(
-                      message.time,
+                      message.text,
                       style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12.0,
+                        color: message.isMe ? Colors.white : Colors.black,
+                        fontSize: 16.0,
                       ),
                     ),
                   ),
-              ],
+                  if (showTime)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+                      child: Text(
+                        message.time,
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12.0,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          if (message.isMe)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.amber[700],
-                child: const Text(
-                  "YO",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
+            if (message.isMe)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.amber[700],
+                  child: const Text(
+                    "YO",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

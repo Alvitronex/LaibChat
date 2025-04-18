@@ -3,6 +3,8 @@ import 'package:frontend/models/models.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend/screens/chat/chat_detail_screen.dart';
 import 'package:frontend/services/services.dart';
+import 'dart:async';
+import 'dart:math' as Math;
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -20,6 +22,7 @@ class _DashboardState extends State<Dashboard> {
   void initState() {
     super.initState();
     _loadConversations();
+    _startConversationUpdateTimer();
 
     // Configuramos que el mensaje de bienvenida desaparezca después de 5 segundos
     Future.delayed(const Duration(seconds: 5), () {
@@ -29,6 +32,23 @@ class _DashboardState extends State<Dashboard> {
         });
       }
     });
+  }
+
+  Timer? _updateTimer;
+
+  void _startConversationUpdateTimer() {
+    // Actualizar conversaciones cada 15 segundos
+    _updateTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (mounted) {
+        _loadConversations();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _updateTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadConversations() async {
@@ -41,11 +61,36 @@ class _DashboardState extends State<Dashboard> {
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    // Obtener las conversaciones
     // Obtener las conversaciones
     try {
       final token = authService.token;
       if (token != null) {
+        print('Cargando conversaciones');
         await chatService.fetchConversations(token);
+        print('Conversaciones cargadas: ${chatService.conversations.length}');
+
+        // Después de cargar las conversaciones, también precargamos los mensajes
+        // de las primeras conversaciones para mostrar el último mensaje
+        if (chatService.conversations.isNotEmpty) {
+          for (int i = 0;
+              i < Math.min(3, chatService.conversations.length);
+              i++) {
+            final conversation = chatService.conversations[i];
+            try {
+              await chatService.fetchMessages(
+                  token, conversation.id, authService.user.id);
+            } catch (e) {
+              print(
+                  'Error al precargar mensajes para conversación ${conversation.id}: $e');
+            }
+          }
+        }
       }
 
       setState(() {
@@ -56,6 +101,7 @@ class _DashboardState extends State<Dashboard> {
         _isLoading = false;
         _errorMessage = 'Error al cargar conversaciones: $e';
       });
+      print('Error detallado al cargar conversaciones: $e');
     }
   }
 

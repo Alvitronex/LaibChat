@@ -1,3 +1,5 @@
+// Actualiza la clase Message en lib/models/message.dart
+
 import 'package:frontend/models/models.dart';
 
 class Message {
@@ -120,14 +122,21 @@ class Message {
       }
     }
 
+    // Determinar si el mensaje es del usuario actual
+    // Usar el campo is_me si está disponible, de lo contrario, usar false
+    bool isMe = false;
+    if (json.containsKey('is_me')) {
+      isMe = json['is_me'] == true;
+    }
+
     return Message(
       id: messageId,
       conversationId: conversationId,
       userId: userId,
       user: messageUser,
       text: messageText,
-      isMe: json['is_me'] ?? false,
-      read: json['read'] ?? false,
+      isMe: isMe,
+      read: json['read'] == true || json['read'] == 1,
       time: formattedTime,
       createdAt: createdAtDate,
       updatedAt: updatedAtDate,
@@ -136,9 +145,13 @@ class Message {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'conversation_id': conversationId,
+      'user_id': userId,
       'content': text,
       'read': read,
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
     };
   }
 }
