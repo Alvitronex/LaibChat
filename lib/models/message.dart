@@ -1,5 +1,3 @@
-// Actualiza la clase Message en lib/models/message.dart
-
 import 'package:frontend/models/models.dart';
 
 class Message {
@@ -14,6 +12,10 @@ class Message {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  // Campos adicionales para gestionar mejor el estado del mensaje
+  final bool isPending; // Indica si el mensaje está pendiente de envío
+  final bool isFailed; // Indica si falló el envío del mensaje
+
   Message({
     this.id,
     this.conversationId,
@@ -25,7 +27,40 @@ class Message {
     required this.time,
     this.createdAt,
     this.updatedAt,
+    this.isPending = false,
+    this.isFailed = false,
   });
+
+  // Crear una copia del mensaje con estados actualizados
+  Message copyWith({
+    int? id,
+    int? conversationId,
+    int? userId,
+    User? user,
+    String? text,
+    bool? isMe,
+    bool? read,
+    String? time,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? isPending,
+    bool? isFailed,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      conversationId: conversationId ?? this.conversationId,
+      userId: userId ?? this.userId,
+      user: user ?? this.user,
+      text: text ?? this.text,
+      isMe: isMe ?? this.isMe,
+      read: read ?? this.read,
+      time: time ?? this.time,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isPending: isPending ?? this.isPending,
+      isFailed: isFailed ?? this.isFailed,
+    );
+  }
 
   factory Message.fromJson(Map<String, dynamic> json) {
     // Procesamiento seguro del contenido del mensaje
@@ -50,11 +85,17 @@ class Message {
         formattedTime =
             '${createdAtDate.hour.toString().padLeft(2, '0')}:${createdAtDate.minute.toString().padLeft(2, '0')}';
       } else {
-        formattedTime = '--:--';
+        // Si no hay created_at, usar hora actual
+        final now = DateTime.now();
+        formattedTime =
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
       }
     } catch (e) {
       print('Error al parsear created_at: $e');
-      formattedTime = '--:--';
+      // Usar hora actual si hay error
+      final now = DateTime.now();
+      formattedTime =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     }
 
     // Procesamiento seguro de la fecha de actualización
@@ -123,11 +164,14 @@ class Message {
     }
 
     // Determinar si el mensaje es del usuario actual
-    // Usar el campo is_me si está disponible, de lo contrario, usar false
     bool isMe = false;
     if (json.containsKey('is_me')) {
       isMe = json['is_me'] == true;
     }
+
+    // Determinar si el mensaje está pendiente o falló
+    bool isPending = json['is_pending'] == true;
+    bool isFailed = json['is_failed'] == true;
 
     return Message(
       id: messageId,
@@ -140,6 +184,8 @@ class Message {
       time: formattedTime,
       createdAt: createdAtDate,
       updatedAt: updatedAtDate,
+      isPending: isPending,
+      isFailed: isFailed,
     );
   }
 
@@ -152,6 +198,53 @@ class Message {
       'read': read,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      'is_pending': isPending,
+      'is_failed': isFailed,
     };
+  }
+
+  // Crear un mensaje local pendiente
+  factory Message.pendingLocal({
+    required int tempId,
+    required int conversationId,
+    required int userId,
+    required String text,
+  }) {
+    final now = DateTime.now();
+    final formattedTime =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    return Message(
+      id: tempId, // ID temporal negativo
+      conversationId: conversationId,
+      userId: userId,
+      text: text,
+      isMe: true,
+      read: false,
+      time: formattedTime,
+      createdAt: now,
+      updatedAt: now,
+      isPending: true,
+      isFailed: false,
+    );
+  }
+
+  // Marcar mensaje como fallido
+  Message markAsFailed() {
+    return copyWith(
+      isPending: false,
+      isFailed: true,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  // Marcar mensaje como enviado
+  Message markAsSent({int? serverId}) {
+    return copyWith(
+      id: serverId ?? id,
+      isPending: false,
+      isFailed: false,
+      updatedAt: DateTime.now(),
+    );
   }
 }

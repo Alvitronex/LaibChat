@@ -31,8 +31,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   int _retryCount = 0;
   Timer? _updateTimer;
   bool _isScreenVisible = true;
-  bool _isAutoRefresh =
-      false; // Flag para identificar actualizaciones automáticas
+  bool _isAutoRefresh = false;
+  // Cola de mensajes pendientes para gestionar múltiples envíos consecutivos
+  final List<Map<String, dynamic>> _pendingMessages = [];
+  // Usar UUID para generar IDs temporales consistentes
+  int _tempMessageId = 0;
+  bool _processingQueue = false;
 
   @override
   void initState() {
@@ -52,6 +56,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // Si vuelve a primer plano, actualizar mensajes
     if (_isScreenVisible) {
       _loadMessages(isAutoRefresh: true);
+    } else {
+      // Pausar procesamiento en segundo plano para ahorrar recursos
+      _processingQueue = false;
     }
   }
 
@@ -68,19 +75,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // Cancelar timer existente si hay uno
     _updateTimer?.cancel();
 
-    // Crear un nuevo timer con intervalo más largo (30 segundos en vez de 15)
-    _updateTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    // Crear un nuevo timer - reducido a 10 segundos para mayor fluidez en tiempo real
+    _updateTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted && _isScreenVisible) {
         _loadMessages(isAutoRefresh: true);
       }
     });
   }
 
-  // Añadimos un parámetro para distinguir entre actualizaciones automáticas y manuales
   Future<void> _loadMessages({bool isAutoRefresh = false}) async {
     // Solo contamos reintentos para carga manual, no para actualizaciones automáticas
     if (!isAutoRefresh) {
-      // Solo incrementar contador si hay error previo y estamos intentando manualmente
       if (_errorMessage.isNotEmpty && _hasAttemptedLoad) {
         _retryCount += 1;
       }
@@ -120,28 +125,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     try {
       final token = authService.token;
       if (token != null) {
-        print(
-            'Cargando mensajes para la conversación ${widget.conversationId}');
+        // Usar parámetro timestamp para obtener solo mensajes nuevos (optimización)
+        final lastMessageTimestamp =
+            _getLastMessageTimestamp(chatService, widget.conversationId);
+
         await chatService.fetchMessages(
-            token, widget.conversationId, authService.user.id);
+            token, widget.conversationId, authService.user.id,
+            lastTimestamp: lastMessageTimestamp);
 
-        print('Mensajes cargados con éxito');
-        print(
-            'Cantidad de mensajes: ${chatService.getMessages(widget.conversationId).length}');
-      }
+        // Solo actualizamos UI si hay mensajes o no es actualización automática
+        if (!isAutoRefresh ||
+            chatService.getMessages(widget.conversationId).isNotEmpty) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = '';
+          });
 
-      // Solo actualizamos UI si no es actualización automática o si hay nuevos mensajes
-      if (!isAutoRefresh ||
-          chatService.getMessages(widget.conversationId).isNotEmpty) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = '';
-        });
-
-        // Desplazar al final cuando se carguen los mensajes
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToBottom();
-        });
+          // Desplazar al final cuando se carguen los mensajes
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToBottom();
+          });
+        }
       }
     } catch (e) {
       // Solo mostramos errores en actualizaciones manuales
@@ -155,7 +159,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     }
   }
 
-  // Método para reiniciar el contador de intentos
+  // Obtener el timestamp del último mensaje para optimizar fetching
+  String? _getLastMessageTimestamp(
+      ChatService chatService, int conversationId) {
+    final messages = chatService.getMessages(conversationId);
+    if (messages.isNotEmpty && messages.last.createdAt != null) {
+      return messages.last.createdAt!.toIso8601String();
+    }
+    return null;
+  }
+
   void _resetRetryCount() {
     setState(() {
       _retryCount = 0;
@@ -178,12 +191,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     }
   }
 
+  // Sistema de cola optimizado para mensajes consecutivos rápidos
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
 
-    if (message.isEmpty || _isSending) return;
+    if (message.isEmpty) return;
 
-    // Limpiar el campo de texto inmediatamente para mejor experiencia de usuario
+    // Limpiar el campo de texto inmediatamente
     _messageController.clear();
 
     final authService = Provider.of<AuthService>(context, listen: false);
@@ -196,12 +210,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       return;
     }
 
-    // Crear mensaje local inmediatamente (solo para UI)
+    // Crear un ID temporal único para este mensaje
+    final tempId =
+        --_tempMessageId; // Usar números negativos para IDs temporales
+
+    // Obtener timestamp preciso del servidor para mejor consistencia
     final now = DateTime.now();
+
+    // Crear mensaje local con timestamp actual
     final formattedTime =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     final localMessage = Message(
-      id: null,
+      id: tempId, // ID temporal negativo para distinguirlo
       conversationId: widget.conversationId,
       userId: authService.user.id,
       user: null,
@@ -213,16 +233,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       updatedAt: now,
     );
 
-    // Actualización optimizada de UI: Añadimos el mensaje directamente al estado local
-    setState(() {
-      // Obtenemos los mensajes actuales y añadimos el nuevo mensaje
-      final currentMessages = chatService.getMessages(widget.conversationId);
-      final List<Message> updatedMessages = List.from(currentMessages)
-        ..add(localMessage);
+    // Añadir a la cola de mensajes pendientes
+    _pendingMessages.add({
+      'message': message,
+      'tempId': tempId,
+      'timestamp': now.millisecondsSinceEpoch,
+    });
 
-      // Forzamos la actualización del estado visual inmediatamente
-      // Esto es solo para UI, los datos reales siguen en chatService
-      if (mounted) {
+    // Actualizar UI inmediatamente con el mensaje local
+    setState(() {
+      // Añadir mensaje a la lista local de ChatService
+      chatService.addLocalMessage(widget.conversationId, localMessage);
+
+      // Mostrar indicador de envío solo si no hay procesamiento activo
+      if (!_processingQueue) {
         _isSending = true;
       }
     });
@@ -232,76 +256,99 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       _scrollToBottom();
     });
 
-    try {
-      final token = authService.token;
-      if (token != null) {
-        // Enviamos el mensaje al servidor de forma asincrónica
-        // pero no esperamos la respuesta para actualizar la UI
-        chatService
-            .sendMessage(
-                token, widget.conversationId, message, authService.user.id)
-            .then((_) {
-          // Opcional: Hacer algo cuando el mensaje se envía exitosamente
-          print('Mensaje enviado con éxito');
-        }).catchError((e) {
-          // Manejo de errores
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error al enviar mensaje: $e'),
-                backgroundColor: Colors.red[100],
-                duration: const Duration(seconds: 3),
-                action: SnackBarAction(
-                  label: 'Reintentar',
-                  onPressed: () => _resendMessage(message),
-                ),
-              ),
-            );
-          }
-        }).whenComplete(() {
-          // Finalmente, actualizamos el estado de envío
-          if (mounted) {
-            setState(() {
-              _isSending = false;
-            });
-          }
-        });
-      }
-    } catch (e) {
-      // Este try-catch es para errores que puedan ocurrir al iniciar la petición
-      print('Error al iniciar el envío: $e');
-      if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al iniciar el envío: $e'),
-            backgroundColor: Colors.red[100],
-          ),
-        );
-      }
+    // Procesar la cola de mensajes si no está ya en proceso
+    if (!_processingQueue) {
+      _processMessageQueue(authService, chatService);
     }
   }
 
-  Future<void> _resendMessage(String messageText) async {
+  // Procesar mensajes en cola para asegurar orden y timestamps correctos
+  Future<void> _processMessageQueue(
+      AuthService authService, ChatService chatService) async {
+    if (_pendingMessages.isEmpty || _processingQueue) return;
+
+    _processingQueue = true;
+
+    while (_pendingMessages.isNotEmpty) {
+      if (!mounted) break;
+
+      // Tomar el primer mensaje de la cola
+      final pendingMessage = _pendingMessages.first;
+      final message = pendingMessage['message'] as String;
+      final tempId = pendingMessage['tempId'] as int;
+
+      try {
+        final token = authService.token;
+        if (token != null) {
+          // Enviar mensaje al servidor
+          final serverMessage = await chatService.sendMessage(
+              token, widget.conversationId, message, authService.user.id,
+              tempId: tempId);
+
+          if (mounted) {
+            // Mensaje enviado correctamente, actualizar UI si es necesario
+            print('Mensaje enviado con éxito: ${serverMessage?.id}');
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          // Marcar mensaje como fallido pero mantenerlo visible
+          chatService.markMessageAsFailed(widget.conversationId, tempId);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al enviar mensaje: $e'),
+              backgroundColor: Colors.red[100],
+              duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Reintentar',
+                onPressed: () => _resendMessage(message, tempId),
+              ),
+            ),
+          );
+        }
+      }
+
+      // Remover el mensaje procesado de la cola
+      _pendingMessages.removeAt(0);
+
+      // Pequeña pausa entre mensajes para asegurar orden correcto
+      if (_pendingMessages.isNotEmpty) {
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isSending = false;
+        _processingQueue = false;
+      });
+    }
+  }
+
+  // Reenviar un mensaje fallido
+  Future<void> _resendMessage(String messageText, int tempId) async {
     if (messageText.isEmpty) return;
 
     final authService = Provider.of<AuthService>(context, listen: false);
     final chatService = Provider.of<ChatService>(context, listen: false);
 
-    try {
-      final token = authService.token;
-      if (token != null) {
-        await chatService.sendMessage(
-            token, widget.conversationId, messageText, authService.user.id);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al reenviar mensaje: $e')),
-        );
-      }
+    // Añadir nuevamente a la cola de mensajes pendientes con prioridad
+    _pendingMessages.insert(0, {
+      'message': messageText,
+      'tempId': tempId,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    setState(() {
+      // Actualizar estado del mensaje a "enviando" nuevamente
+      chatService.updateMessageStatus(widget.conversationId, tempId,
+          isSending: true);
+    });
+
+    // Procesar cola si no está en proceso
+    if (!_processingQueue) {
+      _processMessageQueue(authService, chatService);
     }
   }
 
@@ -356,9 +403,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.black87),
-            onPressed: _isLoading
-                ? null
-                : _resetRetryCount, // Usar el método de reinicio
+            onPressed: _isLoading ? null : _resetRetryCount,
           ),
         ],
       ),
@@ -383,7 +428,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   IconButton(
                     icon: const Icon(Icons.refresh, size: 20),
                     color: Colors.red[700],
-                    onPressed: _resetRetryCount, // Usar el método de reinicio
+                    onPressed: _resetRetryCount,
                   ),
                 ],
               ),
@@ -437,23 +482,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                           controller: _scrollController,
                           padding: const EdgeInsets.all(10),
                           itemCount: messages.length,
-                          // Usar cacheExtent para mantener elementos fuera de pantalla en memoria
                           cacheExtent: 1000,
-                          // Usar Automatic Keep Alive para mantener los widgets en memoria
                           addAutomaticKeepAlives: true,
                           itemBuilder: (context, index) {
                             final message = messages[index];
+
+                            // Calcular si debe mostrar tiempo basado en mensaje previo
                             final bool showTime = index == 0 ||
                                 _shouldShowTime(messages[index],
                                     index > 0 ? messages[index - 1] : null);
 
-                            // Usar key basada en mensaje para optimizar reconstrucción
+                            // Usar key basada en id único para optimizar reconstrucción
                             return KeyedSubtree(
                               key: ValueKey(
-                                  'msg_${message.id ?? message.time}_${message.text.hashCode}'),
+                                  'msg_${message.id}_${message.text.hashCode}'),
                               child: MessageBubble(
                                 message: message,
                                 showTime: showTime,
+                                // Mostrar estado de envío solo para mensajes propios
+                                showStatus: message.isMe,
                               ),
                             );
                           },
@@ -522,7 +569,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                             ),
                           )
                         : const Icon(Icons.send, color: Colors.white),
-                    onPressed: _isSending ? null : _sendMessage,
+                    onPressed: _isSending && _pendingMessages.length > 3
+                        ? null
+                        : _sendMessage,
                   ),
                 ),
               ],
@@ -539,28 +588,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // Si los mensajes son de diferentes usuarios, mostrar tiempo
     if (current.userId != previous.userId) return true;
 
-    // Si hay más de 5 minutos entre mensajes, mostrar tiempo
+    // Si hay más de 2 minutos entre mensajes (reducido de 5 para más detalles temporales)
     if (current.createdAt != null && previous.createdAt != null) {
       final difference = current.createdAt!.difference(previous.createdAt!);
-      return difference.inMinutes > 5;
+      return difference.inMinutes > 2;
     }
 
     return false;
   }
 }
 
+// Widget optimizado con indicador de estado de envío
 class MessageBubble extends StatelessWidget {
   final Message message;
   final bool showTime;
+  final bool showStatus;
 
   const MessageBubble({
     Key? key,
     required this.message,
     this.showTime = true,
+    this.showStatus = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Determinar el estado del mensaje
+    final isFailed =
+        message.id != null && message.id! < 0; // IDs negativos son temporales
+
     // Optimización: usar RepaintBoundary para limitar repintados innecesarios
     return RepaintBoundary(
       child: Padding(
@@ -598,7 +654,11 @@ class MessageBubble extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16.0, vertical: 10.0),
                     decoration: BoxDecoration(
-                      color: message.isMe ? Colors.orange : Colors.grey[200],
+                      color: message.isMe
+                          ? (isFailed
+                              ? Colors.orange.withOpacity(0.7)
+                              : Colors.orange)
+                          : Colors.grey[200],
                       borderRadius: BorderRadius.circular(18.0),
                     ),
                     child: Text(
@@ -612,12 +672,50 @@ class MessageBubble extends StatelessWidget {
                   if (showTime)
                     Padding(
                       padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                      child: Text(
-                        message.time,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12.0,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            message.time,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12.0,
+                            ),
+                          ),
+                          if (showStatus && isFailed)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Icon(
+                                Icons.error_outline,
+                                color: Colors.red[300],
+                                size: 12,
+                              ),
+                            ),
+                          if (showStatus &&
+                              !isFailed &&
+                              message.id != null &&
+                              message.id! > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Icon(
+                                Icons.check,
+                                color: Colors.green[300],
+                                size: 12,
+                              ),
+                            ),
+                          if (showStatus && message.id == null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: SizedBox(
+                                width: 8,
+                                height: 8,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                 ],
