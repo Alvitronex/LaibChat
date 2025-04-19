@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/components/components.dart';
 import 'package:frontend/models/models.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend/screens/chat/chat_detail_screen.dart';
@@ -17,12 +18,15 @@ class _DashboardState extends State<Dashboard> {
   bool _isLoading = true;
   String _errorMessage = '';
   bool _showWelcome = true;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadConversations();
     _startConversationUpdateTimer();
+    _searchController.addListener(_onSearchChanged);
 
     // Configuramos que el mensaje de bienvenida desaparezca después de 5 segundos
     Future.delayed(const Duration(seconds: 5), () {
@@ -48,6 +52,8 @@ class _DashboardState extends State<Dashboard> {
   @override
   void dispose() {
     _updateTimer?.cancel();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -66,7 +72,6 @@ class _DashboardState extends State<Dashboard> {
       _errorMessage = '';
     });
 
-    // Obtener las conversaciones
     // Obtener las conversaciones
     try {
       final token = authService.token;
@@ -129,6 +134,55 @@ class _DashboardState extends State<Dashboard> {
         ),
       );
     }
+
+    // Ordenar las conversaciones por la fecha del último mensaje (más reciente primero)
+    final sortedConversations =
+        List<Conversation>.from(chatService.conversations);
+    sortedConversations.sort((a, b) {
+      // Si alguna conversación no tiene último mensaje, ponerla al final
+      if (a.lastMessage == null && b.lastMessage == null) {
+        return 0; // Ambas sin mensajes, mantener orden original
+      } else if (a.lastMessage == null) {
+        return 1; // a va después de b
+      } else if (b.lastMessage == null) {
+        return -1; // a va antes de b
+      }
+
+      // Comparar por fecha de creación del último mensaje (más reciente primero)
+      final aTime = a.lastMessage!.createdAt;
+      final bTime = b.lastMessage!.createdAt;
+
+      if (aTime == null && bTime == null) {
+        return 0;
+      } else if (aTime == null) {
+        return 1;
+      } else if (bTime == null) {
+        return -1;
+      }
+
+      // Orden descendente (más reciente primero)
+      return bTime.compareTo(aTime);
+    });
+    final filteredConversations = _searchQuery.isEmpty
+        ? sortedConversations
+        : sortedConversations.where((conversation) {
+            // Obtener el nombre de la conversación
+            String conversationName = '';
+            if (conversation.isGroup) {
+              conversationName = conversation.name;
+            } else if (conversation.users.isNotEmpty) {
+              final otherUsers = conversation.users
+                  .where((user) => user.id != authService.user.id)
+                  .toList();
+
+              if (otherUsers.isNotEmpty) {
+                conversationName = otherUsers.first.name;
+              }
+            }
+
+            // Comprobar si el nombre coincide con la búsqueda
+            return conversationName.toLowerCase().contains(_searchQuery);
+          }).toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -228,41 +282,63 @@ class _DashboardState extends State<Dashboard> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: TextField(
+                                    controller: _searchController,
                                     decoration: InputDecoration(
                                       hintText: 'Buscar',
                                       border: InputBorder.none,
                                       hintStyle:
                                           TextStyle(color: Colors.grey[600]),
                                     ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _searchQuery = value.toLowerCase();
+                                      });
+                                    },
                                   ),
                                 ),
+                                if (_searchQuery.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(Icons.clear, size: 18),
+                                    color: Colors.grey[600],
+                                    onPressed: () {
+                                      // Al presionar, limpiamos el texto del controller y la búsqueda
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                      });
+                                    },
+                                  ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 16),
                           Expanded(
-                            child: chatService.conversations.isEmpty
+                            child: filteredConversations.isEmpty
                                 ? Center(
                                     child: Column(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
-                                        const Text('No hay conversaciones'),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            // Aquí iría la lógica para iniciar una nueva conversación
-                                            _showNewChatDialog(context);
-                                          },
-                                          child: const Text('Iniciar chat'),
-                                        ),
+                                        _searchQuery.isNotEmpty
+                                            ? Text(
+                                                'No se encontraron resultados para "$_searchQuery"')
+                                            : const Text(
+                                                'No hay conversaciones'),
+                                        if (_searchQuery.isEmpty)
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              _showNewChatDialog(context);
+                                            },
+                                            child: const Text('Iniciar chat'),
+                                          ),
                                       ],
                                     ),
                                   )
                                 : ListView.builder(
-                                    itemCount: chatService.conversations.length,
+                                    itemCount: filteredConversations.length,
                                     itemBuilder: (context, index) {
                                       final conversation =
-                                          chatService.conversations[index];
+                                          filteredConversations[index];
 
                                       // Obtener el nombre de la conversación
                                       String conversationName = '';
@@ -295,7 +371,7 @@ class _DashboardState extends State<Dashboard> {
                                         message = 'No hay mensajes';
                                         final now = DateTime.now();
                                         time =
-                                            '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+                                            TimeUtils.formatTimeWithAmPm(now);
                                       }
 
                                       return InkWell(
@@ -438,9 +514,15 @@ class _DashboardState extends State<Dashboard> {
       ),
     );
   }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase();
+    });
+  }
 }
 
-// Agregar este método a la clase _DashboardState
+// El método _showNewChatDialog se mantiene igual
 void _showNewChatDialog(BuildContext context) async {
   final authService = Provider.of<AuthService>(context, listen: false);
   final chatService = Provider.of<ChatService>(context, listen: false);

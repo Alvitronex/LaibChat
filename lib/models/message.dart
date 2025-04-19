@@ -1,3 +1,4 @@
+import 'package:frontend/components/components.dart';
 import 'package:frontend/models/models.dart';
 
 class Message {
@@ -75,29 +76,22 @@ class Message {
       }
     }
 
-    // Procesar la fecha de creación con manejo de errores
     DateTime? createdAtDate;
     String formattedTime = '';
     try {
       if (json['created_at'] != null) {
         createdAtDate = DateTime.parse(json['created_at']);
-        // Formato de hora con padding para minutos y horas
-        formattedTime =
-            '${createdAtDate.hour.toString().padLeft(2, '0')}:${createdAtDate.minute.toString().padLeft(2, '0')}';
+
+        // Usar la utilidad para formatear con el ajuste manual de zona horaria
+        formattedTime = TimeUtils.formatTimeWithAmPm(createdAtDate);
       } else {
         // Si no hay created_at, usar hora actual
-        final now = DateTime.now();
-        formattedTime =
-            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+        formattedTime = TimeUtils.formatTimeWithAmPm(DateTime.now());
       }
     } catch (e) {
       print('Error al parsear created_at: $e');
-      // Usar hora actual si hay error
-      final now = DateTime.now();
-      formattedTime =
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      formattedTime = TimeUtils.formatTimeWithAmPm(DateTime.now());
     }
-
     // Procesamiento seguro de la fecha de actualización
     DateTime? updatedAtDate;
     try {

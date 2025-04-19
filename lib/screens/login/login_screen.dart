@@ -210,63 +210,74 @@ class _LoginFormState extends State<_LoginForm> {
               ? const CircularProgressIndicator(
                   color: Colors.amber,
                 )
-              : MaterialButton(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  disabledColor: Colors.grey,
-                  elevation: 5,
-                  color: Colors.amber[700],
-                  onPressed: () async {
-                    FocusScope.of(context).unfocus();
-                    if (!loginForm.isValidForm()) {
-                      widget.onError(
-                          'Por favor complete todos los campos correctamente');
-                      return;
-                    }
+              : // Modificación en la parte del botón de inicio de sesión en _LoginForm
 
-                    setState(() {
-                      _isSubmitting = true;
-                    });
-                    widget.onLoading(true);
-
-                    try {
-                      final authService =
-                          Provider.of<AuthService>(context, listen: false);
-
-                      String respuesta = await authService.login(
-                        loginForm.email,
-                        loginForm.password,
-                        'mobile', // Corregido de 'movile' a 'mobile'
-                      );
-
-                      if (respuesta == "correcto") {
-                        widget.onSuccess();
-                      } else {
-                        widget.onError(respuesta);
-                      }
-                    } catch (e) {
-                      widget.onError('Error inesperado: $e');
-                    } finally {
-                      setState(() {
-                        _isSubmitting = false;
-                      });
-                      widget.onLoading(false);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 100.0, vertical: 15),
-                    child: const Text(
-                      'Iniciar Sesión',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
+// Reemplazar el antiguo MaterialButton por este código:
+              ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber[700],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                   ),
-                ),
+                  onPressed: _isSubmitting
+                      ? null
+                      : () async {
+                          FocusScope.of(context).unfocus();
+                          if (!loginForm.isValidForm()) {
+                            widget.onError(
+                                'Por favor complete todos los campos correctamente');
+                            return;
+                          }
+
+                          setState(() {
+                            _isSubmitting = true;
+                          });
+                          widget.onLoading(true);
+
+                          try {
+                            final authService = Provider.of<AuthService>(
+                                context,
+                                listen: false);
+
+                            String respuesta = await authService.login(
+                              loginForm.email,
+                              loginForm.password,
+                              'mobile',
+                            );
+
+                            if (respuesta == "correcto") {
+                              widget.onSuccess();
+                            } else {
+                              widget.onError(respuesta);
+                            }
+                          } catch (e) {
+                            widget.onError('Error inesperado: $e');
+                          } finally {
+                            setState(() {
+                              _isSubmitting = false;
+                            });
+                            widget.onLoading(false);
+                          }
+                        },
+                  child: _isSubmitting
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
+                        )
+                      : Container(
+                          width: double.infinity,
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Iniciar Sesión',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                )
         ],
       ),
     );

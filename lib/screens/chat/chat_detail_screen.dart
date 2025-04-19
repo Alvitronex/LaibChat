@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:frontend/components/components.dart';
 import 'package:frontend/models/models.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend/services/services.dart';
@@ -214,12 +215,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final tempId =
         --_tempMessageId; // Usar números negativos para IDs temporales
 
-    // Obtener timestamp preciso del servidor para mejor consistencia
     final now = DateTime.now();
+    final formattedTime = TimeUtils.formatTimeWithAmPm(now);
 
-    // Crear mensaje local con timestamp actual
-    final formattedTime =
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     final localMessage = Message(
       id: tempId, // ID temporal negativo para distinguirlo
       conversationId: widget.conversationId,
@@ -583,18 +581,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }
 
   bool _shouldShowTime(Message current, Message? previous) {
-    if (previous == null) return true;
+    // if (previous == null) return true;
 
-    // Si los mensajes son de diferentes usuarios, mostrar tiempo
-    if (current.userId != previous.userId) return true;
+    // // Si los mensajes son de diferentes usuarios, mostrar tiempo
+    // if (current.userId != previous.userId) return true;
 
-    // Si hay más de 2 minutos entre mensajes (reducido de 5 para más detalles temporales)
-    if (current.createdAt != null && previous.createdAt != null) {
-      final difference = current.createdAt!.difference(previous.createdAt!);
-      return difference.inMinutes > 2;
-    }
+    // // Si hay más de 2 minutos entre mensajes (reducido de 5 para más detalles temporales)
+    // if (current.createdAt != null && previous.createdAt != null) {
+    //   final difference = current.createdAt!.difference(previous.createdAt!);
+    //   return difference.inMinutes > 2;
+    // }
 
-    return false;
+    return true;
   }
 }
 

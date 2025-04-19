@@ -234,14 +234,16 @@ class _RegisterFormState extends State<_RegisterForm> {
               return null;
             },
           ),
-          const SizedBox(height: 25),
-          MaterialButton(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+          const SizedBox(height: 15),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[700],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 5,
+              padding: const EdgeInsets.symmetric(vertical: 15),
             ),
-            disabledColor: Colors.grey,
-            elevation: 5,
-            color: Colors.amber[700],
             onPressed: registerForm.isLoading
                 ? null
                 : () async {
@@ -291,8 +293,6 @@ class _RegisterFormState extends State<_RegisterForm> {
                         ),
                       );
                     } else {
-                      // Mostrar el mensaje de error específico
-                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(respuesta),
@@ -303,18 +303,36 @@ class _RegisterFormState extends State<_RegisterForm> {
                     }
                   },
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 116.0, vertical: 15),
+              width: double.infinity,
+              alignment: Alignment.center,
               child: Text(
-                registerForm.isLoading ? 'Espere' : 'Registrarse',
+                registerForm.isLoading ? 'Espere...' : 'Registrarse',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
+                ),
+              );
+            },
+            child: const Text(
+              '¿Ya tienes cuenta? Inicia sesión',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.black87,
+              ),
+            ),
+          )
         ],
       ),
     );
