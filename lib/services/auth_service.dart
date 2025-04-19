@@ -10,9 +10,8 @@ class AuthService extends ChangeNotifier {
   User? _user;
   String? _token;
 
-  bool get  authenticated => _isLoggedIn;
+  bool get authenticated => _isLoggedIn;
   User get user => _user!;
-  // Añadir getter para token
   String? get token => _token;
 
   Servidor servidor = Servidor();
@@ -37,27 +36,103 @@ class AuthService extends ChangeNotifier {
       // Limpiar estado anterior
       cleanUp();
 
-      final response =
-          await http.post(Uri.parse('${servidor.baseUrl}/sanctum/token'),
-              body: ({
-                'email': email,
-                'password': password,
-                "device_name": deviceName,
-              }));
+      // Realizar la solicitud en el formato esperado por el backend
+      final response = await http.post(
+        Uri.parse('${servidor.baseUrl}/sanctum/token'),
+        body: {
+          'email': email,
+          'password': password,
+          'device_name': deviceName,
+        },
+      );
 
-      if (response.statusCode == 200) {
-        String token = response.body.toString();
-        final bool tokenValid = await tryToken(token);
+      print('Login response status: ${response.statusCode}');
+      print('Login response body: ${response.body}');
+
+      // Intentar decodificar como JSON para verificar si es una respuesta de error
+      try {
+        final jsonResponse = jsonDecode(response.body);
+
+        // Si contiene un mensaje, probablemente sea un error
+        if (jsonResponse is Map && jsonResponse.containsKey('message')) {
+          return jsonResponse['message'] ?? 'Error no especificado';
+        }
+
+        // Si contiene errors, es definitivamente un error
+        if (jsonResponse is Map && jsonResponse.containsKey('errors')) {
+          final errors = jsonResponse['errors'];
+          if (errors is Map && errors.containsKey('email')) {
+            return errors['email'][0] ?? 'Error de validación';
+          }
+          return 'Error de validación';
+        }
+      } catch (e) {
+        // Si no es JSON, podría ser el token directamente como texto plano
+        print('Respuesta no es JSON: probablemente un token');
+      }
+
+      // Si la respuesta no es JSON, asumimos que es el token
+      final token = response.body.trim();
+
+      // Comprobar si el token es válido
+      if (token.length > 20) {
+        // Un token suele ser bastante largo
+        final tokenValid = await tryToken(token);
         if (tokenValid) {
           return "correcto";
-        } else {
-          return 'Token inválido';
         }
-      } else {
-        return 'Datos incorrectos';
       }
+
+      // Si llegamos aquí, no pudimos autenticar
+      return 'Credenciales incorrectas o error de conexión';
     } catch (e) {
-      return 'error';
+      print('Excepción en login: $e');
+      return 'Error de conexión';
+    }
+  }
+
+  Future<bool> tryToken(String? token) async {
+    if (token == null || token.isEmpty) {
+      return false;
+    } else {
+      try {
+        final response = await http.get(
+          Uri.parse('${servidor.baseUrl}/user'),
+          headers: {'Authorization': 'Bearer $token'},
+        );
+
+        print('Try token response status: ${response.statusCode}');
+        print('Try token body length: ${response.body.length}');
+        if (response.body.length < 100) {
+          print('Try token response body: ${response.body}');
+        } else {
+          print(
+              'Try token response body: (respuesta larga, probablemente contiene datos de usuario)');
+        }
+
+        if (response.statusCode == 200) {
+          try {
+            final userData = jsonDecode(response.body);
+            _user = User.fromJson(userData);
+            _isLoggedIn = true;
+            _token = token;
+            storeToken(token);
+            notifyListeners();
+            return true;
+          } catch (e) {
+            print('Error al decodificar datos de usuario: $e');
+            return false;
+          }
+        } else {
+          // Token inválido o no autorizado
+          cleanUp();
+          return false;
+        }
+      } catch (e) {
+        print('Error al validar token: $e');
+        cleanUp();
+        return false;
+      }
     }
   }
 
@@ -71,64 +146,75 @@ class AuthService extends ChangeNotifier {
       // Limpiar cache
       cleanUp();
 
-      int phoneInt;
-      try {
-        phoneInt = int.parse(phone);
-      } catch (e) {
+      // Validar que el teléfono tenga sólo dígitos
+      if (!RegExp(r'^\d+$').hasMatch(phone)) {
         return 'El número de teléfono debe ser numérico';
       }
 
-      final response =
-          await http.post(Uri.parse('${servidor.baseUrl}/register'),
-              body: ({
-                'name': name,
-                'email': email,
-                'phone': phoneInt.toString(),
-                'password': password,
-              }));
+      // Realizar la solicitud según la API esperada
+      final response = await http.post(
+        Uri.parse('${servidor.baseUrl}/register'),
+        body: {
+          'name': name,
+          'email': email,
+          'phone': phone,
+          'password': password,
+        },
+      );
 
-      if (response.statusCode == 200) {
-        String token = response.body.toString();
-        final bool tokenValid = await tryToken(token);
-        if (tokenValid) {
-          return "correcto";
-        } else {
-          return 'Token inválido';
-        }
-      } else {
-        return 'Datos incorrectos';
-      }
-    } catch (e) {
-      return 'error';
-    }
-  }
+      print('Register response status: ${response.statusCode}');
+      print('Register response body: ${response.body}');
 
-  Future<bool> tryToken(String? token) async {
-    if (token == null) {
-      return false;
-    } else {
+      // Intentar decodificar como JSON para verificar si es respuesta de error
       try {
-        final response = await http.get(Uri.parse('${servidor.baseUrl}/user'),
-            headers: {'Authorization': 'Bearer $token'});
+        final jsonResponse = jsonDecode(response.body);
 
-        if (response.statusCode == 200) {
-          _isLoggedIn = true;
-          _user = User.fromJson(jsonDecode(response.body));
-          _token = token;
-          storeToken(token);
-          notifyListeners();
-          return true;
-        } else {
-          // Token inválido o no autorizado
-          cleanUp();
-          notifyListeners();
-          return false;
+        // Verificar si es un mensaje de error
+        if (jsonResponse is Map && jsonResponse.containsKey('message')) {
+          return jsonResponse['message'];
+        }
+
+        // Verificar si son errores de validación
+        if (jsonResponse is Map && jsonResponse.containsKey('errors')) {
+          final errors = jsonResponse['errors'];
+          if (errors is Map) {
+            for (var key in errors.keys) {
+              if (errors[key] is List && errors[key].isNotEmpty) {
+                return errors[key][0];
+              }
+            }
+          }
+          return 'Error de validación';
+        }
+
+        // Si es un mensaje de texto, como "usuario creado exitosamente"
+        if (jsonResponse is String && jsonResponse.contains('exitosamente')) {
+          return 'correcto';
         }
       } catch (e) {
-        cleanUp();
-        notifyListeners();
-        return false;
+        // Si no es JSON, podría ser el token directamente como texto plano
+        print('Respuesta no es JSON: podría ser el token o mensaje simple');
       }
+
+      // Si el código de estado es exitoso
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Podría ser un token como texto plano
+        if (response.body.length > 20 && !response.body.contains('{')) {
+          return 'correcto';
+        }
+
+        // O podría ser un mensaje simple
+        if (response.body.contains('exitosamente')) {
+          return 'correcto';
+        }
+
+        return 'correcto';
+      }
+
+      return 'Error en el registro. Intenta más tarde';
+    } catch (e) {
+      print('Excepción en registro: $e');
+      return 'error';
     }
   }
 
@@ -143,6 +229,7 @@ class AuthService extends ChangeNotifier {
             headers: {'Authorization': 'Bearer $_token'});
       }
     } catch (e) {
+      print('Error al cerrar sesión: $e');
       // Manejar errores silenciosamente
     } finally {
       cleanUp();

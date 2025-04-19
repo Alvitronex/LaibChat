@@ -41,29 +41,6 @@ class RegisterScreen extends StatelessWidget {
                   child: _RegisterForm(),
                 ),
               ),
-              const SizedBox(
-                height: 10,
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginScreen(),
-                      fullscreenDialog: true, // Agrega esta línea
-                    ),
-                  );
-                },
-                child: const Text(
-                  textAlign: TextAlign.center,
-                  '¿Ya tienes cuenta? Inicia sesión',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ),
             ]),
           ),
         ),
@@ -72,10 +49,71 @@ class RegisterScreen extends StatelessWidget {
   }
 }
 
-class _RegisterForm extends StatelessWidget {
+class _RegisterForm extends StatefulWidget {
+  @override
+  _RegisterFormState createState() => _RegisterFormState();
+}
+
+class _RegisterFormState extends State<_RegisterForm> {
+  bool _registrationSuccess = false;
+
   @override
   Widget build(BuildContext context) {
     final registerForm = Provider.of<registerfromprovider>(context);
+
+    if (_registrationSuccess) {
+      // Si el registro fue exitoso, mostrar mensaje y botón para ir a login
+      return Column(
+        children: [
+          const SizedBox(height: 20),
+          const Icon(
+            Icons.check_circle_outline,
+            color: Colors.green,
+            size: 80,
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            '¡Registro completado con éxito!',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Tu cuenta se ha creado correctamente.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[700],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+            ),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
+                ),
+              );
+            },
+            child: const Text(
+              'Iniciar Sesión',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Form(
       key: registerForm.formkey,
       autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -96,6 +134,12 @@ class _RegisterForm extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10.0),
               ),
             ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return "El nombre no puede estar vacío";
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 15),
           TextFormField(
@@ -116,9 +160,7 @@ class _RegisterForm extends StatelessWidget {
               if (value == null || value.isEmpty) {
                 return "El número telefónico no puede estar vacío";
               }
-              try {
-                int.parse(value); // Verifica que sea un número válido
-              } catch (e) {
+              if (!RegExp(r'^\d+$').hasMatch(value)) {
                 return "Ingrese solo números";
               }
               return null;
@@ -136,12 +178,24 @@ class _RegisterForm extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10.0),
               ),
             ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return "El correo no puede estar vacío";
+              }
+              final emailRegExp = RegExp(
+                r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+',
+              );
+              if (!emailRegExp.hasMatch(value)) {
+                return "Correo electrónico no válido";
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 15),
           TextFormField(
             autocorrect: false,
             obscureText: true,
-            keyboardType: TextInputType.emailAddress,
+            keyboardType: TextInputType.visiblePassword,
             onChanged: (value) => registerForm.password = value,
             decoration: InputDecoration(
               labelText: "Contraseña",
@@ -151,21 +205,19 @@ class _RegisterForm extends StatelessWidget {
               ),
             ),
             validator: (value) {
-              if (value != null &&
-                  value.length >= 8 &&
-                  value == registerForm.password) {
-                return null;
-              } else if (value == null || value.isEmpty) {
+              if (value == null || value.isEmpty) {
                 return "La contraseña no puede estar vacía";
+              } else if (value.length < 8) {
+                return 'La contraseña debe tener al menos 8 caracteres';
               }
-              return 'La contraseña es demasiado corta';
+              return null;
             },
           ),
           const SizedBox(height: 15),
           TextFormField(
             autocorrect: false,
             obscureText: true,
-            // onChanged: (value) => registerForm.password = value,
+            keyboardType: TextInputType.visiblePassword,
             decoration: InputDecoration(
               labelText: 'Confirmar contraseña',
               prefixIcon: const Icon(Icons.password_outlined),
@@ -183,58 +235,67 @@ class _RegisterForm extends StatelessWidget {
             },
           ),
           const SizedBox(height: 15),
-          MaterialButton(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[700],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 5,
+              padding: const EdgeInsets.symmetric(vertical: 15),
             ),
-            disabledColor: Colors.grey,
-            elevation: 5,
-            color: Colors.amber[700],
             onPressed: registerForm.isLoading
                 ? null
                 : () async {
                     FocusScope.of(context).unfocus();
-                    if (!registerForm.isValidForm()) return;
+                    if (!registerForm.isValidForm()) {
+                      // Mostrar mensaje de validación
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text(
+                              'Por favor complete todos los campos correctamente'),
+                          backgroundColor: Colors.red[100],
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                      return;
+                    }
+
                     registerForm.isLoading = true;
 
                     final authService =
                         Provider.of<AuthService>(context, listen: false);
 
                     String respuesta = await authService.register(
-                        registerForm.name,
-                        registerForm.email,
-                        registerForm.phone, // Añadido de nuevo
+                      registerForm.name,
+                      registerForm.email,
+                      registerForm.phone,
+                      registerForm.password,
+                    );
 
-                        // int.parse(
-                        //     registerForm.phone), // Conversión de String a int
-                        registerForm.password);
                     registerForm.isLoading = false;
 
                     // ignore: use_build_context_synchronously
-                    if (respuesta == "correcto") {
-                      Navigator.push(
-                        // ignore: use_build_context_synchronously
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                          fullscreenDialog: true,
-                        ),
-                      );
+                    if (respuesta == "correcto" ||
+                        respuesta.contains("creado exitosamente")) {
+                      // Cambiar el estado para mostrar el mensaje de éxito
+                      setState(() {
+                        _registrationSuccess = true;
+                      });
                     } else if (respuesta == "error") {
                       // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: const Text('Error de conexión'),
+                          content:
+                              const Text('Error de conexión con el servidor'),
                           backgroundColor: Colors.red[100],
                           duration: const Duration(seconds: 3),
                         ),
                       );
                     } else {
-                      // Show error message and allow retry
-                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: const Text('Credenciales incorrectas'),
+                          content: Text(respuesta),
                           backgroundColor: Colors.red[100],
                           duration: const Duration(seconds: 3),
                         ),
@@ -242,18 +303,36 @@ class _RegisterForm extends StatelessWidget {
                     }
                   },
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 116.0, vertical: 15),
+              width: double.infinity,
+              alignment: Alignment.center,
               child: Text(
-                registerForm.isLoading ? 'Espere' : 'Registrarse',
+                registerForm.isLoading ? 'Espere...' : 'Registrarse',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
+                ),
+              );
+            },
+            child: const Text(
+              '¿Ya tienes cuenta? Inicia sesión',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.black87,
+              ),
+            ),
+          )
         ],
       ),
     );
