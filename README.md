@@ -28,27 +28,47 @@ Tener en cuenta la api que se estará llamando por medio de laravel, conectar de
 Path /lib/services/server.dart
 
 class Servidor {
-  
-  // Cambia esto según el entorno
+  // Variable para detectar entorno de desarrollo.
   static const bool isProduction = false;
+  // Variable para dispositivos fisicos en emulacion de movil.
+  static const bool isPhysicalDevice = true;  // boolean para activar si es fisico o emulado de dispositivimos moviles.
+  
 
-  // Para acceder desde dispositivos móviles, web y emuladores
+  // Para acceder desde dispositivos móviles, web y emuladores.
   String get baseUrl {
-    if (isProduction) { //script para levantamiento en servidor externo
+    if (isProduction) {
       return 'https://www.alvitronex.com/backend/public/api';
     } else {
       // Determinar la plataforma y usar la URL apropiada
       const bool kIsWeb = identical(0, 0.0);
 
       if (kIsWeb) {
-        return 'http://localhost:8000/api'; // Para web local (backend - laravel)
+        return 'http://localhost:8000/api'; // Para web local.
+      } else if (isPhysicalDevice) {
+        // IMPORTANTE: Reemplaza "192.168.0.0" con la IP real de la computadora para poder conectar API Laravel.
+        return 'http://192.168.1.36:8000/api'; // Para dispositivo físico
       } else {
-        return 'http://10.0.2.2:8000/api'; // Para emulador Android
+        return 'http://10.0.2.2:8000/api'; // Para emulador Android desde misma computadora.
       }
     }
   }
-//encabezado ante endpoints o consultas
-  final headers = <String, String>{'Content-type': 'application/json'};
+
+  // Headers para las peticiones, son muy importantes colocarlos para no tener error en los endpoints.
+  Map<String, String> getHeaders({String? token, bool includeJson = true}) {
+    final headers = <String, String>{};
+
+    if (includeJson) {
+      headers['Content-Type'] = 'application/json';
+      headers['Accept'] = 'application/json';
+    }
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    return headers;
+  }
 }
+
 
 ```
