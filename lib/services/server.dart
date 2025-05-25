@@ -77,8 +77,8 @@ class Servidor {
       if (kIsWeb) {
         return 'http://localhost:8000/api'; // Para web local
       } else if (isPhysicalDevice) {
-        // IMPORTANTE: Reemplaza "192.168.1.X" con la IP real de tu computadora
-        return 'http://192.168.1.36:8000/api'; // Para dispositivo físico
+        // IMPORTANTE: Reemplaza "192.168.x.X" con la IP real de tu computadora
+        return 'http://192.168.218.66:8000/api'; // Para dispositivo físico
       } else {
         return 'http://10.0.2.2:8000/api'; // Para emulador Android
       }
