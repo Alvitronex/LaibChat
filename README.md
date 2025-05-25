@@ -23,8 +23,9 @@ Actualizar la version de flutter a la mas reciente o integrarse a la que tenemos
 
 ### ENV Development
 Tener en cuenta la api que se estará llamando por medio de laravel, conectar de manera correcta para tener los endpoints de forma fluida y sin problemas.
-
+Crear archivo para el levantamiento de servicios en la siguiente ruta:
 ```python
+
 Path /lib/services/server.dart
 
 class Servidor {
@@ -41,7 +42,10 @@ class Servidor {
       const bool kIsWeb = identical(0, 0.0);
 
       if (kIsWeb) {
-        return 'http://localhost:8000/api'; // Para web local (backend - laravel)
+        return 'http://localhost:8000/api'; // Para web local
+      } else if (isPhysicalDevice) {
+        // IMPORTANTE: Reemplaza "direccion.ip" con la IP real de tu computadora
+        return 'http://direccion.ip:8000/api'; // Para dispositivo físico
       } else {
         return 'http://10.0.2.2:8000/api'; // Para emulador Android
       }
